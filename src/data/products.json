@@ -1,0 +1,594 @@
+[
+  {
+    "id": "elite-2",
+    "name": "Nocta Cap White",
+    "size": "-",
+    "brand": "NIKE",
+    "type": "GORRA",
+    "image": "/products/image16.webp"
+  },
+  {
+    "id": "elite-3",
+    "name": "Palm Angels LA Tee White",
+    "size": "L",
+    "brand": "PALM ANGELS",
+    "type": "REMERA",
+    "image": "/products/image54.webp"
+  },
+  {
+    "id": "elite-4",
+    "name": "Off White Tee Basic White",
+    "size": "S",
+    "brand": "OFF WHITE",
+    "type": "REMERA",
+    "image": "/products/image15.webp"
+  },
+  {
+    "id": "elite-5",
+    "name": "Balenciaga Hoodie Black/Orange",
+    "size": "L",
+    "brand": "BALENCIAGA",
+    "type": "HOODIE",
+    "image": "/products/image25.webp"
+  },
+  {
+    "id": "elite-6",
+    "name": "Sprayground Shark Brown Backpack",
+    "size": "-",
+    "brand": "SPRAYGROUND",
+    "type": "MOCHILA",
+    "image": "/products/image29.webp"
+  },
+  {
+    "id": "elite-7",
+    "name": "Bape Camo Black/Green Tee",
+    "size": "XL",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image28.webp"
+  },
+  {
+    "id": "elite-8",
+    "name": "Corteiz Alcatraz Hoodie Black/Yellow",
+    "size": "M",
+    "brand": "CORTEIZ",
+    "type": "HOODIE",
+    "image": "/products/image10.webp"
+  },
+  {
+    "id": "elite-9",
+    "name": "Corteiz Island Puff Zip Hoodie Navy",
+    "size": "L",
+    "brand": "CORTEIZ",
+    "type": "ZIP HOODIE",
+    "image": "/products/image50.webp"
+  },
+  {
+    "id": "elite-10",
+    "name": "Corteiz Royale Heavyweight Navy Tee",
+    "size": "L",
+    "brand": "CORTEIZ",
+    "type": "REMERA",
+    "image": "/products/image32.webp"
+  },
+  {
+    "id": "elite-11",
+    "name": "Corteiz Hoodie Alcatraz Black/White",
+    "size": "XL",
+    "brand": "CORTEIZ",
+    "type": "HOODIE",
+    "image": "/products/image23.webp"
+  },
+  {
+    "id": "elite-12",
+    "name": "Corteiz Zip Hoodie Pink",
+    "size": "L",
+    "brand": "CORTEIZ",
+    "type": "HOODIE",
+    "image": "/products/image4.webp"
+  },
+  {
+    "id": "elite-13",
+    "name": "Corteiz Cap Black",
+    "size": "-",
+    "brand": "CORTEIZ",
+    "type": "GORRA",
+    "image": "/products/image30.webp"
+  },
+  {
+    "id": "elite-14",
+    "name": "Corteiz Cap Black",
+    "size": "-",
+    "brand": "CORTEIZ",
+    "type": "GORRA",
+    "image": "/products/image30.webp"
+  },
+  {
+    "id": "elite-15",
+    "name": "Corteiz Cap Black",
+    "size": "-",
+    "brand": "CORTEIZ",
+    "type": "GORRA",
+    "image": "/products/image30.webp"
+  },
+  {
+    "id": "elite-16",
+    "name": "Corteiz Cap Blue",
+    "size": "-",
+    "brand": "CORTEIZ",
+    "type": "GORRA",
+    "image": "/products/image30.webp"
+  },
+  {
+    "id": "elite-17",
+    "name": "Corteiz Cap Orange",
+    "size": "-",
+    "brand": "CORTEIZ",
+    "type": "GORRA",
+    "image": "/products/image30.webp"
+  },
+  {
+    "id": "elite-18",
+    "name": "Corteiz Tee Pink",
+    "size": "S",
+    "brand": "CORTEIZ",
+    "type": "REMERA",
+    "image": "/products/image17.webp"
+  },
+  {
+    "id": "elite-19",
+    "name": "Bape Tee White/Blue",
+    "size": "M",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image13.webp"
+  },
+  {
+    "id": "elite-20",
+    "name": "Bape Tee Black/White",
+    "size": "L",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image20.webp"
+  },
+  {
+    "id": "elite-21",
+    "name": "Off White Hoodie Blue",
+    "size": "S",
+    "brand": "OFF WHITE",
+    "type": "HOODIE",
+    "image": "/products/image11.webp"
+  },
+  {
+    "id": "elite-22",
+    "name": "Sprayground Toiletry Bag Black/Gold",
+    "size": "-",
+    "brand": "SPRAYGROUND",
+    "type": "NECESSER",
+    "image": "/products/image19.webp"
+  },
+  {
+    "id": "elite-23",
+    "name": "Sprayground Toiletry Bag Black/Red",
+    "size": "-",
+    "brand": "SPRAYGROUND",
+    "type": "NECESSER",
+    "image": "/products/image19.webp"
+  },
+  {
+    "id": "elite-24",
+    "name": "Bape Shark Black/Green Tee",
+    "size": "L",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image27.webp"
+  },
+  {
+    "id": "elite-25",
+    "name": "Bape Shark Black/Green Tee",
+    "size": "XL",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image27.webp"
+  },
+  {
+    "id": "elite-26",
+    "name": "Bape Shark Black Tee",
+    "size": "L",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image26.webp"
+  },
+  {
+    "id": "elite-27",
+    "name": "Bape Shark Black/White Tee",
+    "size": "L",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image2.webp"
+  },
+  {
+    "id": "elite-28",
+    "name": "Bape Baby Milo Tee White",
+    "size": "XL",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image5.webp"
+  },
+  {
+    "id": "elite-29",
+    "name": "Denim Tears Black Rhinestone Hoodie",
+    "size": "XL",
+    "brand": "DENIM TEARS",
+    "type": "HOODIE",
+    "image": "/products/image40.webp"
+  },
+  {
+    "id": "elite-30",
+    "name": "Mixed Emotion Broken Wings Zip Hoodie",
+    "size": "XL",
+    "brand": "MIXED EMOTION",
+    "type": "HOODIE",
+    "image": "/products/image39.webp"
+  },
+  {
+    "id": "elite-31",
+    "name": "Mixed Emotion Black Rhinestone Zip Hoodie",
+    "size": "L",
+    "brand": "MIXED EMOTION",
+    "type": "HOODIE",
+    "image": "/products/image3.webp"
+  },
+  {
+    "id": "elite-32",
+    "name": "Mixed Emotion Black END Zip Hoodie",
+    "size": "XXL",
+    "brand": "MIXED EMOTION",
+    "type": "HOODIE",
+    "image": "/products/image7.webp"
+  },
+  {
+    "id": "elite-33",
+    "name": "Mixed Emotion Red END Zip Hoodie",
+    "size": "XL",
+    "brand": "MIXED EMOTION",
+    "type": "HOODIE",
+    "image": "/products/image34.webp"
+  },
+  {
+    "id": "elite-34",
+    "name": "Mixed Emotion Black Pearl Zip Hoodie",
+    "size": "XL",
+    "brand": "MIXED EMOTION",
+    "type": "HOODIE",
+    "image": "/products/image35.webp"
+  },
+  {
+    "id": "elite-35",
+    "name": "Corteiz HMP White Tank Top (3 Pack)",
+    "size": "XL",
+    "brand": "CORTEIZ",
+    "type": "MUSCULOSA",
+    "image": "/products/image21.webp"
+  },
+  {
+    "id": "elite-36",
+    "name": "Corteiz Womens Classic Tank Top Black",
+    "size": "S",
+    "brand": "CORTEIZ",
+    "type": "BODY",
+    "image": "/products/image18.webp"
+  },
+  {
+    "id": "elite-37",
+    "name": "Corteiz Singles Tee Black",
+    "size": "S",
+    "brand": "CORTEIZ",
+    "type": "REMERA",
+    "image": "/products/image1.webp"
+  },
+  {
+    "id": "elite-38",
+    "name": "Corteiz Singles Tee Black",
+    "size": "L",
+    "brand": "CORTEIZ",
+    "type": "REMERA",
+    "image": "/products/image1.webp"
+  },
+  {
+    "id": "elite-39",
+    "name": "Corteiz Black Allstar Boxers (3 Pack)",
+    "size": "S",
+    "brand": "CORTEIZ",
+    "type": "BOXERS",
+    "image": "/products/image12.webp"
+  },
+  {
+    "id": "elite-40",
+    "name": "Corteiz Grey Allstar Boxers (3 Pack)",
+    "size": "S",
+    "brand": "CORTEIZ",
+    "type": "BOXERS",
+    "image": "/products/image12.webp"
+  },
+  {
+    "id": "elite-41",
+    "name": "Corteiz Black Allstar Boxers (3 Pack)",
+    "size": "M",
+    "brand": "CORTEIZ",
+    "type": "BOXERS",
+    "image": "/products/image12.webp"
+  },
+  {
+    "id": "elite-42",
+    "name": "Supreme Capital Black Hoodie",
+    "size": "L",
+    "brand": "SUPREME",
+    "type": "HOODIE",
+    "image": "/products/image9.webp"
+  },
+  {
+    "id": "elite-43",
+    "name": "Supreme Candle Tee Black",
+    "size": "M",
+    "brand": "SUPREME",
+    "type": "REMERA",
+    "image": "/products/image8.webp"
+  },
+  {
+    "id": "elite-44",
+    "name": "Bape Tee Black/White",
+    "size": "M",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image20.webp"
+  },
+  {
+    "id": "elite-45",
+    "name": "Valley Hoodie Rhinestone",
+    "size": "XL",
+    "brand": "VALLEY",
+    "type": "HOODIE",
+    "image": "/products/image55.webp"
+  },
+  {
+    "id": "elite-46",
+    "name": "Valley Black Rap Tee",
+    "size": "L",
+    "brand": "VALLEY",
+    "type": "REMERA",
+    "image": "/products/image24.webp"
+  },
+  {
+    "id": "elite-47",
+    "name": "Valley Black Rap Tee",
+    "size": "XL",
+    "brand": "VALLEY",
+    "type": "REMERA",
+    "image": "/products/image24.webp"
+  },
+  {
+    "id": "elite-48",
+    "name": "Bape Shark Black/White Tee",
+    "size": "S",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image2.webp"
+  },
+  {
+    "id": "elite-49",
+    "name": "Bape Shark Black/White Tee",
+    "size": "M",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image2.webp"
+  },
+  {
+    "id": "elite-50",
+    "name": "Bape Shark Black/White Tee",
+    "size": "L",
+    "brand": "BAPE",
+    "type": "REMERA",
+    "image": "/products/image2.webp"
+  },
+  {
+    "id": "elite-51",
+    "name": "Sp5der Rodeo White Tee",
+    "size": "XL",
+    "brand": "SP5DER",
+    "type": "REMERA",
+    "image": "/products/image37.webp"
+  },
+  {
+    "id": "elite-52",
+    "name": "Off White OOO Triple Black",
+    "size": "8",
+    "brand": "OFF WHITE",
+    "type": "REMERA",
+    "image": "/products/image33.webp"
+  },
+  {
+    "id": "elite-53",
+    "name": "Off White OOO Triple Black",
+    "size": "12",
+    "brand": "OFF WHITE",
+    "type": "REMERA",
+    "image": "/products/image33.webp"
+  },
+  {
+    "id": "elite-54",
+    "name": "Supreme S/S Top Tee White",
+    "size": "M",
+    "brand": "SUPREME",
+    "type": "REMERA",
+    "image": "/products/image41.webp"
+  },
+  {
+    "id": "elite-55",
+    "name": "Supreme S/S Top Tee White",
+    "size": "L",
+    "brand": "SUPREME",
+    "type": "REMERA",
+    "image": "/products/image41.webp"
+  },
+  {
+    "id": "elite-56",
+    "name": "Supreme S/S Top Tee Black",
+    "size": "S",
+    "brand": "SUPREME",
+    "type": "REMERA",
+    "image": "/products/image31.webp"
+  },
+  {
+    "id": "elite-57",
+    "name": "Supreme S/S Top Tee Black",
+    "size": "XL",
+    "brand": "SUPREME",
+    "type": "REMERA",
+    "image": "/products/image31.webp"
+  },
+  {
+    "id": "elite-58",
+    "name": "Essentials Hoodie Dark Oatmeal",
+    "size": "XS",
+    "brand": "ESSENTIALS",
+    "type": "HOODIE",
+    "image": "/products/image48.webp"
+  },
+  {
+    "id": "elite-59",
+    "name": "Essentials Sweatpants Stretch Limo",
+    "size": "L",
+    "brand": "ESSENTIALS",
+    "type": "PANTALON",
+    "image": "/products/image45.webp"
+  },
+  {
+    "id": "elite-60",
+    "name": "Essentials Sweatpants Stretch Limo",
+    "size": "L",
+    "brand": "ESSENTIALS",
+    "type": "PANTALON",
+    "image": "/products/image45.webp"
+  },
+  {
+    "id": "elite-61",
+    "name": "Essentials Stretch Limo Tee",
+    "size": "XS",
+    "brand": "ESSENTIALS",
+    "type": "REMERA",
+    "image": "/products/image42.webp"
+  },
+  {
+    "id": "elite-62",
+    "name": "Essentials Light Oatmeal Tee",
+    "size": "M",
+    "brand": "ESSENTIALS",
+    "type": "REMERA",
+    "image": "/products/image44.webp"
+  },
+  {
+    "id": "elite-63",
+    "name": "Essentials Nba Heather Tee",
+    "size": "XXS",
+    "brand": "ESSENTIALS",
+    "type": "REMERA",
+    "image": "/products/image57.webp"
+  },
+  {
+    "id": "elite-64",
+    "name": "Essentials Nba Heather Tee",
+    "size": "M",
+    "brand": "ESSENTIALS",
+    "type": "REMERA",
+    "image": "/products/image57.webp"
+  },
+  {
+    "id": "elite-65",
+    "name": "Essentials 1977 Short Light Oatmeal",
+    "size": "XL",
+    "brand": "ESSENTIALS",
+    "type": "SHORT",
+    "image": "/products/image49.webp"
+  },
+  {
+    "id": "elite-66",
+    "name": "Essentials Jet Black Tee",
+    "size": "S",
+    "brand": "ESSENTIALS",
+    "type": "REMERA",
+    "image": "/products/image36.webp"
+  },
+  {
+    "id": "elite-67",
+    "name": "Essentials White Tee",
+    "size": "S",
+    "brand": "ESSENTIALS",
+    "type": "REMERA",
+    "image": "/products/image56.webp"
+  },
+  {
+    "id": "elite-68",
+    "name": "Essentials Fleece Sweatpants Black",
+    "size": "M",
+    "brand": "ESSENTIALS",
+    "type": "PANTALON",
+    "image": "/products/image52.webp"
+  },
+  {
+    "id": "elite-69",
+    "name": "Essentials Fleece Sweatpants Black",
+    "size": "L",
+    "brand": "ESSENTIALS",
+    "type": "PANTALON",
+    "image": "/products/image52.webp"
+  },
+  {
+    "id": "elite-70",
+    "name": "Essentials Hoodie 1977",
+    "size": "L",
+    "brand": "ESSENTIALS",
+    "type": "HOODIE",
+    "image": "/products/image61.webp"
+  },
+  {
+    "id": "elite-71",
+    "name": "Essentials Relaxed 1977",
+    "size": "L",
+    "brand": "ESSENTIALS",
+    "type": "PANTALON",
+    "image": "/products/image53.webp"
+  },
+  {
+    "id": "elite-72",
+    "name": "Essentials Fleece Relaxed (Pant)",
+    "size": "L",
+    "brand": "ESSENTIALS",
+    "type": "PANTALON",
+    "image": "/products/image51.webp"
+  },
+  {
+    "id": "elite-73",
+    "name": "Supreme White Boxers",
+    "size": "M",
+    "brand": "SUPREME",
+    "type": "BOXERS",
+    "image": "/products/image60.webp"
+  },
+  {
+    "id": "elite-74",
+    "name": "Supreme Black Boxers",
+    "size": "S",
+    "brand": "SUPREME",
+    "type": "BOXERS",
+    "image": "/products/image59.webp"
+  },
+  {
+    "id": "elite-75",
+    "name": "Supreme Black Boxers",
+    "size": "M",
+    "brand": "SUPREME",
+    "type": "BOXERS",
+    "image": "/products/image59.webp"
+  }
+]

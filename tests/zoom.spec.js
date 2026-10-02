@@ -1,0 +1,37 @@
+import { test, expect } from '@playwright/test'
+for (const width of [390, 1440]) {
+  test(`complete photos and product zoom at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/')
+    await expect(page.locator('.announcement, .club-banner, .campaign-copy')).toHaveCount(0)
+    for (const img of await page.locator('.campaign-images img').all()) {
+      expect(await img.evaluate(el => getComputedStyle(el).objectFit)).toBe('contain')
+      const box = await img.boundingBox()
+      const parent = await img.locator('..').boundingBox()
+      expect(box.x).toBeGreaterThanOrEqual(parent.x)
+      expect(box.x + box.width).toBeLessThanOrEqual(parent.x + parent.width + 1)
+    }
+    const cardPhoto = page.locator('.catalog-zoom').first()
+    await cardPhoto.hover({ position: { x: 30, y: 30 } })
+    await expect(cardPhoto).toHaveClass(/is-zoomed/)
+    await page.getByRole('button', { name: 'Ver Nocta Cap', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    const photo = dialog.locator('.detail-zoom')
+    await photo.hover({ position: { x: 30, y: 30 } })
+    await expect(photo).toHaveClass(/is-zoomed/)
+    const origin = await photo.locator('img').evaluate(el => getComputedStyle(el).transformOrigin)
+    await photo.hover({ position: { x: 100, y: 100 } })
+    expect(await photo.locator('img').evaluate(el => getComputedStyle(el).transformOrigin)).not.toBe(origin)
+    await expect.poll(() => photo.locator('img').evaluate(el => getComputedStyle(el).transform)).toBe('matrix(2.5, 0, 0, 2.5, 0, 0)')
+    await dialog.getByRole('heading').first().hover()
+    await expect(photo).not.toHaveClass(/is-zoomed/)
+    await expect(dialog.locator('.zoom-control')).toHaveCount(0)
+    await photo.focus()
+    await page.keyboard.press('Enter')
+    await expect(photo).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.press('Escape')
+    await expect(photo).toHaveAttribute('aria-pressed', 'false')
+    await dialog.getByRole('button', { name: 'Agregar al carrito', exact: true }).click()
+    await expect(dialog.getByRole('status')).toHaveText('Agregado al carrito · 1 unidad')
+  })
+}
