@@ -1,0 +1,51 @@
+import { test, expect } from '@playwright/test'
+
+test('language switch translates filters and cart, preserves state and persists', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Agregar al carrito', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Hombre', exact: true }).click()
+  await page.getByRole('button', { name: 'English', exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-GB')
+  await expect(page.getByRole('button', { name: 'Men', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'Cart 1', exact: true })).toBeVisible()
+  await expect(page.locator('.load-more p')).toHaveText('Showing 12 of 42 products')
+  await page.locator('.filter-panel>summary').click()
+  await expect(page.getByRole('combobox', { name: 'Filter by product type' }).locator('option')).toHaveText(['All products', 'T-shirts', 'Hoodies', 'Pants', 'Accessories'])
+  await page.getByRole('combobox', { name: 'Filter by color' }).selectOption('Blue')
+  await page.getByRole('combobox', { name: 'Filter by brand' }).selectOption('CORTEIZ')
+  await page.getByRole('button', { name: 'Español', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: 'Filtrar por color' })).toHaveValue('Blue')
+  await expect(page.getByRole('combobox', { name: 'Filtrar por marca' })).toHaveValue('CORTEIZ')
+  await page.getByRole('button', { name: 'English', exact: true }).click()
+  await page.getByRole('button', { name: 'Cart 1', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('heading', { name: 'Your cart (1)' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Increase Nocta Cap White' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Your cart (2)' })).toBeVisible()
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-GB')
+  await page.getByRole('button', { name: 'Cart 2', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v1')).cart[0].quantity)).toBe(2)
+})
+
+test('white photos and carousel, Arial titles and centred load-more in both languages', async ({ page }) => {
+  await page.goto('/')
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const language of ['English', 'Español']) {
+      await page.getByRole('button', { name: language, exact: true }).click()
+      const text = await page.locator('.load-more .button>span').boundingBox()
+      const count = await page.locator('.load-more p').boundingBox()
+      expect(Math.abs(text.x + text.width / 2 - count.x - count.width / 2)).toBeLessThan(1)
+      expect(await page.locator('.product-visual').first().evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)')
+      expect(await page.locator('.product-title').first().evaluate(el => getComputedStyle(el).fontFamily)).toMatch(/^Arial/)
+      expect(await page.locator('.campaign').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    }
+    await page.locator('.product-card').last().scrollIntoViewIfNeeded()
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({ path: `test-results/language-${width}.png`, fullPage: true })
+  }
+})

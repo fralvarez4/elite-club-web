@@ -9,14 +9,20 @@
     "lint": "eslint .",
     "preview": "next start",
     "start": "next start",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:rate-limit": "node --test tests/rate-limiting.node.mjs",
+    "db:seed:generate": "node scripts/generate-products-seed.mjs"
   },
   "dependencies": {
-    "next": "^16.3.7",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
+    "next": "^16.3.8",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "zod": "4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.63.0",
     "@types/react": "^19.2.18",

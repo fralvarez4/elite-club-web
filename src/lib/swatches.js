@@ -1,9 +1,9 @@
 const PALETTE = {
-  Negro: '#191919', Blanco: '#f6f5f1', Azul: '#2861c4', 'Azul marino': '#1c2943',
-  Naranja: '#e77828', Verde: '#436643', Amarillo: '#e4c744', Rosa: '#e9a9c3',
-  Marrón: '#795c43', Dorado: '#b99a51', Rojo: '#c63035', Gris: '#929294',
-  'Gris jaspeado': '#aaa9a6', 'Avena oscuro': '#aba598', 'Avena claro': '#e3ded2',
-  'Negro Stretch Limo': '#202020', 'Negro Jet': '#151515',
+  black: '#191919', white: '#f6f5f1', blue: '#2861c4', navy: '#1c2943',
+  orange: '#e77828', green: '#436643', yellow: '#e4c744', pink: '#e9a9c3',
+  brown: '#795c43', gold: '#b99a51', red: '#c63035', grey: '#929294', gray: '#929294',
+  heather: '#aaa9a6', 'dark oatmeal': '#aba598', 'light oatmeal': '#e3ded2',
+  'stretch limo': '#202020', 'jet black': '#151515',
 }
 // Visually checked against the original product photos. Shared multicolor
 // photos still use each variant's color, so blue and orange caps remain distinct.
@@ -15,10 +15,10 @@ const PHOTO_COLORS = {
   'image53': '#44464a', 'image51': '#191919',
 }
 export function swatchFor(variant) {
-  const colors = variant.color.split(' / ')
+  const colors = variant.color.toLowerCase().split(' / ')
   if (colors.length > 1) {
     return `linear-gradient(135deg, ${PALETTE[colors[0]] || '#a6a6a6'} 0% 50%, ${PALETTE[colors[1]] || '#a6a6a6'} 50% 100%)`
   }
   const photo = variant.image.match(/\/products\/(image\d+)\.(?:webp|png)$/)?.[1]
-  return PHOTO_COLORS[photo] || PALETTE[variant.color.split(' / ')[0]] || '#a6a6a6'
+  return PHOTO_COLORS[photo] || PALETTE[colors[0]] || '#a6a6a6'
 }

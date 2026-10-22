@@ -1,16 +1,34 @@
-'use client'
+﻿'use client'
+import { useLanguage, LanguageProvider, LanguageSwitcher } from '../lib/i18n'
 import { useEffect, useRef, useState } from 'react'
+
 import { addItem, setQuantity, removeItem } from '../lib/cart'
 import { groupProducts, sizesFor, resolveCart } from '../lib/catalog'
 import { swatchFor } from '../lib/swatches'
+import CatalogNavigation from './CatalogNavigation'
+import CatalogFilters from './CatalogFilters'
+import FeaturedCarousel from './FeaturedCarousel'
+import AuthForm from './AuthForm'
+import CheckoutFlow from './CheckoutFlow'
+import { useAuth } from '../lib/auth'
+import { missingProfileFields } from '../lib/profiles'
 
 function Icon({ name, ...props }) {
   const paths = { bag: 'M5 7h14l1 14H4L5 7ZM9 8V6a3 3 0 0 1 6 0v2', search: 'm21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0', arrow: 'M4 12h16m-6-6 6 6-6 6', close: 'm6 6 12 12M6 18 18 6', heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z', plus: 'M12 5v14M5 12h14', trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7', check: 'm5 12 4 4L19 6' }
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><path d={paths[name] || paths.arrow} /></svg>
 }
-function Logo() { return <span className="wordmark" aria-label="Elite Club"><span>Elite</span><span>Club</span></span> }
+function Logo() {
+  const [loaded, setLoaded] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => { if (ref.current?.complete && ref.current.naturalWidth > 0) setLoaded(true) }, [])
+  return <span>
+    <img ref={ref} className="brand-logo" style={{ display: loaded ? 'block' : 'none' }} src="/elite-club-logo.png" alt="Elite Club" onLoad={() => setLoaded(true)} onError={() => setLoaded(false)} />
+    {!loaded && <span className="wordmark" aria-label="Elite Club"><span>Elite</span><span>Club</span></span>}
+  </span>
+}
 function Photo({ product, ...props }) { return <img src={product.image} alt={product.name} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} {...props} /> }
 function ProductZoom({ product, compact = false }) {
+  const { t } = useLanguage()
   const [zoomed, setZoomed] = useState(false)
   function move(event) {
     if (event.pointerType === 'touch') return
@@ -24,16 +42,17 @@ function ProductZoom({ product, compact = false }) {
   return <span className={`hover-photo ${compact ? 'catalog-zoom' : 'detail-zoom'} ${zoomed ? 'is-zoomed' : ''}`}
     onPointerMove={move} onPointerLeave={() => setZoomed(false)} onBlur={() => setZoomed(false)}
     role={compact ? undefined : 'button'} tabIndex={compact ? undefined : 0}
-    aria-label={compact ? undefined : 'Ampliar foto del producto'} aria-pressed={compact ? undefined : zoomed}
+    aria-label={compact ? undefined : t('Ampliar foto del producto')} aria-pressed={compact ? undefined : zoomed}
     onClick={compact ? undefined : () => setZoomed(current => !current)}
     onKeyDown={compact ? undefined : event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setZoomed(current => !current) } if (event.key === 'Escape' && zoomed) { event.preventDefault(); event.stopPropagation(); setZoomed(false) } }}>
     <Photo product={product} loading={compact ? 'lazy' : 'eager'} />
   </span>
 }
 function Modal({ title, onClose, children, drawer = false }) {
+  const { t } = useLanguage()
   const ref = useRef(null)
   useEffect(() => { const dialog = ref.current; dialog.showModal(); const previous = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = previous } }, [])
-  return <dialog ref={ref} className={drawer ? 'modal drawer' : 'modal'} onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose() }}><div className="modal-head"><h2>{title}</h2><button className="icon-button" aria-label="Cerrar" onClick={onClose}><Icon name="close" /></button></div>{children}</dialog>
+  return <dialog ref={ref} className={drawer ? 'modal drawer' : 'modal'} onCancel={event => { event.preventDefault(); onClose() }} onClick={e => { if (e.target === e.currentTarget) onClose() }}><div className="modal-head"><h2>{title}</h2><button className="icon-button" aria-label={t("Cerrar")} onClick={onClose}><Icon name="close" /></button></div>{children}</dialog>
 }
 function useVariantSelection(group, initial = {}) {
   const [color, setColor] = useState(initial.color || group.variants[0].color)
@@ -49,50 +68,77 @@ function useVariantSelection(group, initial = {}) {
   return { color, colorChosen, size, variant, photo, chooseColor, setSize }
 }
 function VariantOptions({ group, products, selection, compact = false }) {
+  const { t } = useLanguage()
   const oneSize = group.variants.every(v => v.size === '-')
   return <div className={`variant-options ${compact ? 'compact' : ''}`}>
-    <fieldset aria-label="Colores disponibles"><div className="variant-buttons colors">{[...new Set(group.variants.map(v => v.color))].map(color => <button className="color-swatch" type="button" key={color} aria-label={color} aria-pressed={selection.color === color} style={{ '--swatch': swatchFor(group.variants.find(v => v.color === color)) }} onClick={() => selection.chooseColor(color)}><span aria-hidden="true" /></button>)}</div></fieldset>
-    {!oneSize && selection.colorChosen && <details className="size-picker" key={selection.color} open={!selection.size}><summary>{selection.size ? `Talle ${selection.size}` : 'Elegir talle'}</summary><fieldset aria-label="Talles"><div className="variant-buttons sizes">{sizesFor(group, products).map(size => {
+    <fieldset aria-label={t("Colores disponibles")}><div className="variant-buttons colors">{[...new Set(group.variants.map(v => v.color))].map(color => <button className="color-swatch" type="button" key={color} aria-label={color} aria-pressed={selection.color === color} style={{ '--swatch': swatchFor(group.variants.find(v => v.color === color)) }} onClick={() => selection.chooseColor(color)}><span aria-hidden="true" /></button>)}</div></fieldset>
+    {!oneSize && selection.colorChosen && <details className="size-picker" key={selection.color} open={!selection.size}><summary>{t(selection.size ? `Talle ${selection.size}` : 'Elegir talle')}</summary><fieldset aria-label={t("Talles")}><div className="variant-buttons sizes">{sizesFor(group, products).map(size => {
       const available = group.variants.some(v => v.color === selection.color && v.size === size)
-      return <button type="button" key={size} disabled={!available} aria-pressed={selection.size === size} aria-label={`Talle ${size === '-' ? 'Único' : size}${available ? '' : ' · No disponible'}`} title={available ? 'Disponible' : 'No disponible en este color'} onClick={event => { selection.setSize(size); event.currentTarget.closest('details').open = false }}>{size === '-' ? 'Único' : size}</button>
+      return <button type="button" key={size} disabled={!available} aria-pressed={selection.size === size} aria-label={t(`Talle ${size === '-' ? t('Único') : size}${available ? '' : ' · No disponible'}`)} title={t(available ? 'Disponible' : 'No disponible en este color')} onClick={event => { selection.setSize(size); event.currentTarget.closest('details').open = false }}>{size === '-' ? t('Único') : size}</button>
     })}</div></fieldset></details>}
   </div>
 }
-function ProductCard({ group, products, favorite, isFavorite, onOpen, onAdd, initialSize }) {
-  const match = group.variants.find(v => v.size === initialSize)
-  const selection = useVariantSelection(group, match || {})
+function ProductPrice({ group, selection }) {
+  const { language, t } = useLanguage()
+  const variants = selection.variant ? [selection.variant] : group.variants.filter(variant => variant.color === selection.color)
+  const prices = variants.map(variant => typeof variant.price === 'number' || (typeof variant.price === 'string' && variant.price.trim()) ? Number(variant.price) : NaN)
+  const valid = prices.length > 0 && prices.every(price => Number.isFinite(price) && price > 0)
+  const formatter = new Intl.NumberFormat(language === 'en' ? 'en-US' : 'es-AR', { style: 'currency', currency: 'ARS' })
+  const low = Math.min(...prices)
+  const high = Math.max(...prices)
+  return <p className="product-price">{valid ? (low === high ? formatter.format(low) : formatter.formatRange(low, high)) : t('Precio no disponible')}</p>
+}
+function ProductCard({ group, products, favorite, isFavorite, onOpen, onAdd, initialSize, initialColor }) {
+  const { t } = useLanguage()
+  const match = (initialSize || initialColor) ? group.variants.find(v => (!initialSize || v.size === initialSize) && (!initialColor || v.color.split(' / ').includes(initialColor))) : undefined
+  const selection = useVariantSelection(group, match ? { color: match.color, size: initialSize || undefined } : {})
   const [added, setAdded] = useState(false)
   return <article className="product-card">
-    <div className="product-visual"><button className="photo-button" aria-label={`Ver ${group.name}`} onClick={() => onOpen(group, { color: selection.color, size: selection.size })}><ProductZoom key={selection.photo.id} product={selection.photo} compact /></button><div className="photo-actions"><button className="quick-add" aria-label="Agregar al carrito" title="Agregar al carrito" onClick={() => { if (selection.variant) { onAdd(selection.variant); setAdded(true) } else onOpen(group, { color: selection.color, size: selection.size }) }}><Icon name="plus" /></button><button className={`favorite ${isFavorite ? 'is-favorite' : ''}`} aria-label={`${isFavorite ? 'Quitar de' : 'Agregar a'} favoritos: ${group.name}`} onClick={favorite}><Icon name="heart" fill={isFavorite ? 'currentColor' : 'none'} /></button></div></div>
+    <div className="product-visual"><button className="photo-button" aria-label={t(`Ver ${group.name}`)} onClick={() => onOpen(group, { color: selection.color, size: selection.size })}><ProductZoom key={selection.photo.id} product={selection.photo} compact /></button><div className="photo-actions"><button className="quick-add" aria-label={t("Agregar al carrito")} title={t("Agregar al carrito")} onClick={() => { if (selection.variant) { onAdd(selection.variant); setAdded(true) } else onOpen(group, { color: selection.color, size: selection.size }) }}><Icon name="plus" /></button><button className={`favorite ${isFavorite ? 'is-favorite' : ''}`} aria-label={t(`${isFavorite ? 'Quitar de' : 'Agregar a'} favoritos: ${group.name}`)} onClick={favorite}><Icon name="heart" fill={isFavorite ? 'currentColor' : 'none'} /></button></div></div>
     <div className="product-meta"><span>{group.brand}</span></div>
     <button className="product-title" onClick={() => onOpen(group, { color: selection.color, size: selection.size })}>{group.name}</button>
+    <ProductPrice group={group} selection={selection} />
     <VariantOptions group={group} products={products} selection={selection} compact />
-    {added && <span className="card-added" role="status">Agregado al carrito</span>}
+    {added && <span className="card-added" role="status">{t("Agregado al carrito")}</span>}
   </article>
 }
 function ProductDetail({ group, products, initial, cart, onAdd, onCart, count }) {
+  const { t } = useLanguage()
   const selection = useVariantSelection(group, initial)
   const quantity = selection.variant ? cart.find(i => i.id === selection.variant.id)?.quantity || 0 : 0
   return <div className="detail"><ProductZoom key={selection.photo.id} product={selection.photo} /><div><p className="eyebrow">{group.brand}</p><h2>{group.name}</h2>
+    <ProductPrice group={group} selection={selection} />
     <VariantOptions group={group} products={products} selection={selection} />
-    <button className="button dark" disabled={!selection.variant || quantity >= 99} onClick={() => onAdd(selection.variant)}>Agregar al carrito <Icon name="plus" /></button>
-    {!selection.variant && <p className="selection-help">Elegí un talle disponible para agregar el producto.</p>}
-    <div className="detail-cart-status" role="status" aria-live="polite" aria-atomic="true">{quantity > 0 && <><Icon name="check" /><span>Agregado al carrito · {quantity} {quantity === 1 ? 'unidad' : 'unidades'}</span></>}</div>
-    {quantity > 0 && <button className="detail-view-cart" onClick={onCart}>Ver carrito ({count}) <Icon name="arrow" /></button>}
+    <button className="button dark" disabled={!selection.variant || quantity >= 99} onClick={() => onAdd(selection.variant)}>{t("Agregar al carrito")} <Icon name="plus" /></button>
+    {!selection.variant && <p className="selection-help">{t("Elegí un talle disponible para agregar el producto.")}</p>}
+    <div className="detail-cart-status" role="status" aria-live="polite" aria-atomic="true">{quantity > 0 && <><Icon name="check" /><span>{t(`Agregado al carrito · ${quantity} ${quantity === 1 ? 'unidad' : 'unidades'}`)}</span></>}</div>
+    {quantity > 0 && <button className="detail-view-cart" onClick={onCart}>{t(`Ver carrito (${count})`)} <Icon name="arrow" /></button>}
   </div></div>
 }
-export default function Store({ initialProducts }) {
+function Store({ initialProducts, initialFilters = {} }) {
+  const { t } = useLanguage()
+  const { user, returningFromEmail, acknowledgeEmailReturn, profile } = useAuth()
+
   const products = initialProducts
   const [cart, setCart] = useState([])
   const [favorites, setFavorites] = useState([])
   const [ready, setReady] = useState(false)
-  const [query, setQuery] = useState('')
-  const [category, setCategory] = useState('Todo')
-  const [brand, setBrand] = useState('')
+  const [query, setQuery] = useState(initialFilters.query || '')
+  const [category, setCategory] = useState(initialFilters.category || 'Todo')
+  const [department, setDepartment] = useState(initialFilters.department || '')
+  const [brand, setBrand] = useState(initialFilters.brand || '')
   const [size, setSize] = useState('')
+  const [color, setColor] = useState('')
   const [sort, setSort] = useState('featured')
-  const [onlyFavorites, setOnlyFavorites] = useState(false)
+  const [onlyFavorites, setOnlyFavorites] = useState(initialFilters.onlyFavorites || false)
   const [modal, setModal] = useState(null)
+  const [checkoutBusy, setCheckoutBusy] = useState(false)
+  useEffect(() => {
+    if (returningFromEmail) { setModal({ type: 'auth' }); acknowledgeEmailReturn() }
+  }, [returningFromEmail, acknowledgeEmailReturn])
+  useEffect(() => {
+    if (profile && missingProfileFields(profile).length) setModal({ type: 'auth' })
+  }, [profile])
   const [toast, setToast] = useState('')
   const [limit, setLimit] = useState(12)
   useEffect(() => {
@@ -103,31 +149,42 @@ export default function Store({ initialProducts }) {
   const categories = ['Todo', 'Remeras', 'Hoodies', 'Pantalones', 'Accesorios']
   const matchesCategory = p => category === 'Todo' || (category === 'Remeras' ? /REMERA|TEE|POLO|MUSCULOSA|BODY/.test(p.type) : category === 'Hoodies' ? /HOODIE|BUZO|SWEATER|CAMPERA/.test(p.type) : category === 'Pantalones' ? /PANTAL|SHORT|BERMUDA|JEAN|JOGGER/.test(p.type) : !/REMERA|TEE|POLO|MUSCULOSA|BODY|HOODIE|BUZO|SWEATER|CAMPERA|PANTAL|SHORT|BERMUDA|JEAN|JOGGER/.test(p.type))
   const groups = groupProducts(products)
-  const filtered = groups.filter(p => matchesCategory(p) && (!brand || p.brand === brand) && (!onlyFavorites || p.sourceIds.some(id => favorites.includes(id))) && p.variants.some(v => (!size || v.size === size) && `${p.name} ${v.name} ${v.color} ${p.brand} ${p.type}`.toLowerCase().includes(query.toLowerCase()))).sort((a,b) => sort === 'az' ? a.name.localeCompare(b.name) : sort === 'za' ? b.name.localeCompare(a.name) : 0)
+
+  const filtered = groups.filter(p => (!department || (/\b(wom[ae]n(?:s|'s)?|mujer(?:es)?)\b/i.test(p.name) ? 'Mujer' : 'Hombre') === department) && matchesCategory(p) && (!brand || p.brand === brand) && (!onlyFavorites || p.sourceIds.some(id => favorites.includes(id))) && p.variants.some(v => (!size || v.size === size) && (!color || v.color.split(' / ').includes(color)) && `${p.name} ${v.name} ${v.color} ${p.brand} ${p.type}`.toLowerCase().includes(query.toLowerCase()))).sort((a,b) => sort === 'az' ? a.name.localeCompare(b.name) : sort === 'za' ? b.name.localeCompare(a.name) : 0)
   const items = resolveCart(cart, groups)
   const count = items.reduce((sum, item) => sum + item.quantity, 0)
   const cartRows = rows => resolveCart(rows, groups).map(({ id, quantity }) => ({ id, quantity }))
   function add(product) { setCart(current => addItem(cartRows(current), product)); setToast(`${product.name}${product.size === '-' ? '' : ` · Talle ${product.size}`} agregado al carrito`) }
   function favorite(group) { setFavorites(current => group.sourceIds.some(id => current.includes(id)) ? current.filter(id => !group.sourceIds.includes(id)) : [...current, group.id]) }
   function openProduct(group, initial) { setModal({ type: 'detail', product: group, initial }) }
-  function reset() { setQuery(''); setCategory('Todo'); setBrand(''); setSize(''); setOnlyFavorites(false); setLimit(12) }
+  function reset() { setQuery(''); setCategory('Todo'); setBrand(''); setSize(''); setColor(''); setSort('featured'); setOnlyFavorites(false); setLimit(12) }
+  function navigateCatalog(nextDepartment = '', nextCategory = 'Todo') {
+    reset(); setDepartment(nextDepartment); setCategory(nextCategory)
+    document.getElementById('catalogo').scrollIntoView()
+  }
 
   return <>
-    <header className="header"><a href="#" className="logo-link" aria-label="Elite Club, inicio"><Logo /></a><nav aria-label="Navegación principal"><a href="#catalogo" className="nav-active" onClick={reset}>Colección</a><a href="#marcas">Marcas</a></nav><div className="header-actions"><button className="icon-button" aria-label="Buscar productos" onClick={() => { document.getElementById('catalogo').scrollIntoView(); document.getElementById('search').focus() }}><Icon name="search" /></button><button className={`icon-button ${onlyFavorites ? 'selected' : ''}`} aria-label="Ver favoritos" onClick={() => { setOnlyFavorites(!onlyFavorites); document.getElementById('catalogo').scrollIntoView() }}><Icon name="heart" /></button><button className="cart-button" onClick={() => setModal({ type: 'cart' })}><Icon name="bag" /><span>Carrito</span><b>{count}</b></button></div></header>
-    <main><section className="campaign"><div className="campaign-images"><div><img className="hero-product" src="/products/image25.webp" alt="Hoodie Balenciaga negro con letras naranjas" /></div><div><img src="/products/image25.webp" alt="Hoodie Balenciaga completo" /></div></div></section>
-    <section className="brand-strip" id="marcas" aria-label="Marcas de la colección">{['NIKE', 'PALM ANGELS', 'OFF WHITE', 'BALENCIAGA', 'CORTEIZ'].map(b => <a href="#catalogo" key={b} onClick={() => { reset(); setBrand(b) }}>{b === 'OFF WHITE' ? 'Off-White™' : b === 'PALM ANGELS' ? 'Palm Angels' : b}</a>)}</section>
-    <section className="catalog" id="catalogo"><div className="section-heading"><h1>La colección</h1></div><div className="catalog-tabs"><div className="tabs" role="group" aria-label="Categorías">{categories.map(c => <button className={category === c ? 'active' : ''} key={c} onClick={() => { setCategory(c); setLimit(12) }}>{c}{c === 'Todo' && <small>{groups.length}</small>}</button>)}</div></div>
-    <div className="filters"><label className="search"><Icon name="search" /><input id="search" placeholder="Buscá tu próxima pieza" value={query} onChange={e => { setQuery(e.target.value); setLimit(12) }} /></label><select aria-label="Filtrar por marca" value={brand} onChange={e => setBrand(e.target.value)}><option value="">Todas las marcas</option>{[...new Set(products.map(p => p.brand))].sort().map(b => <option key={b}>{b}</option>)}</select><select aria-label="Filtrar por talle" value={size} onChange={e => setSize(e.target.value)}><option value="">Todos los talles</option>{[...new Set(products.map(p => p.size))].sort().map(s => <option key={s} value={s}>{s === '-' ? 'Único' : s}</option>)}</select><select aria-label="Ordenar productos" value={sort} onChange={e => setSort(e.target.value)}><option value="featured">Orden original</option><option value="az">Nombre: A–Z</option><option value="za">Nombre: Z–A</option></select></div>
-    <div className="results"><span>{filtered.length} productos{onlyFavorites && ' · Tus favoritos'}</span>{(query || category !== 'Todo' || brand || size || onlyFavorites) && <button onClick={reset}>Limpiar filtros ×</button>}</div>
-    <div className="product-grid">{filtered.slice(0, limit).map(p => <ProductCard key={p.id + ':' + size + ':' + p.variants.map(v => v.name + v.size).join('|')} group={p} products={products} initialSize={size} isFavorite={p.sourceIds.some(id => favorites.includes(id))} favorite={() => favorite(p)} onOpen={openProduct} onAdd={add} />)}</div>
-    {!filtered.length && <div className="empty"><Icon name="search" width="36" height="36" /><h3>No encontramos esa pieza.</h3><p>Probá con otra marca, talle o palabra.</p><button className="button dark" onClick={reset}>Ver toda la colección</button></div>}{filtered.length > limit && <div className="load-more"><button className="button outline" onClick={() => setLimit(limit + 12)}>Descubrir más piezas <Icon name="plus" /></button><p>Viendo {Math.min(limit, filtered.length)} de {filtered.length} productos</p></div>}</section>
+    <LanguageSwitcher />
+    <header className="header"><a href="/" className="logo-link" aria-label={t("Elite Club, inicio")}><Logo /></a><CatalogNavigation department={department} categories={categories} onSelect={navigateCatalog} /><div className="header-actions"><button className="icon-button" aria-label={t("Buscar productos")} onClick={() => { document.getElementById('catalogo').scrollIntoView(); document.getElementById('search').focus() }}><Icon name="search" /></button><button className={`icon-button ${onlyFavorites ? 'selected' : ''}`} aria-label={t("Ver favoritos")} onClick={() => { setOnlyFavorites(!onlyFavorites); document.getElementById('catalogo').scrollIntoView() }}><Icon name="heart" /></button><button className={`icon-button account-button ${user ? 'selected' : ''}`} aria-label={t(user ? 'Mi cuenta' : 'Iniciar sesión')} title={user?.email || t('Iniciar sesión')} onClick={() => setModal({ type: 'auth' })}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>{user && <Icon name="check" className="account-check" width="10" height="10" />}</button><button className="cart-button" onClick={() => setModal({ type: 'cart' })}><Icon name="bag" /><span>{t("Carrito")}</span><b>{count}</b></button></div></header>
+    <main><FeaturedCarousel products={groups} onOpen={openProduct} />
+    <section className="brand-strip" id="marcas" aria-label={t("Marcas de la colección")}>{['NIKE', 'PALM ANGELS', 'OFF WHITE', 'BALENCIAGA', 'CORTEIZ'].map(b => <a href="#catalogo" key={b} onClick={() => { reset(); setBrand(b) }}>{b === 'OFF WHITE' ? 'Off-White™' : b === 'PALM ANGELS' ? 'Palm Angels' : b}</a>)}</section>
+    <section className="catalog" id="catalogo"><div className="section-heading"><h1>{t(department || "La colección")}{category !== "Todo" && <span className="heading-category"> / {t(category)}</span>}</h1></div>
+    <div className="catalog-toolbar"><form className="search" onSubmit={event => event.preventDefault()}><label className="sr-only" htmlFor="search">{t("Buscar productos")}</label><Icon name="search" /><input id="search" name="q" placeholder={t("Buscá tu próxima pieza")} value={query} onChange={e => { setQuery(e.target.value); setLimit(12) }} />{department && <input type="hidden" name="seccion" value={department} />}<button type="submit" aria-label={t("Enviar búsqueda")}><Icon name="arrow" /></button></form>
+    <CatalogFilters brands={[...new Set(products.map(p => p.brand))].sort()} sizes={[...new Set(products.map(p => p.size))].sort()} colors={[...new Set(groups.flatMap(p => p.variants.flatMap(v => v.color.split(' / '))))].sort()} categories={categories} values={{ brand, size, color, category, sort }} onChange={(field, value) => { ({ brand: setBrand, size: setSize, color: setColor, category: setCategory, sort: setSort })[field](value); setLimit(12) }} onClear={() => { setBrand(''); setSize(''); setColor(''); setCategory('Todo'); setSort('featured'); setLimit(12) }} /></div>
+    <div className="results"><span>{t(`${filtered.length} productos${onlyFavorites ? ' · Tus favoritos' : ''}`)}</span>{(query || department || category !== 'Todo' || brand || size || color || onlyFavorites) && <button onClick={reset}>{t("Limpiar filtros ×")}</button>}</div>
+    <div className="product-grid">{filtered.slice(0, limit).map(p => <ProductCard key={p.id + ':' + color + ':' + size + ':' + p.variants.map(v => v.name + v.size).join('|')} group={p} products={products} initialSize={size} initialColor={color} isFavorite={p.sourceIds.some(id => favorites.includes(id))} favorite={() => favorite(p)} onOpen={openProduct} onAdd={add} />)}</div>
+    {!filtered.length && <div className="empty"><Icon name="search" width="36" height="36" /><h3>{t("No encontramos esa pieza.")}</h3><p>{t("Probá con otra marca, talle o palabra.")}</p><button className="button dark" onClick={reset}>{t("Ver toda la colección")}</button></div>}{filtered.length > limit && <div className="load-more"><button className="button outline" onClick={() => setLimit(limit + 12)}><span>{t("Descubrir más piezas")}</span><Icon name="plus" /></button><p>{t(`Viendo ${Math.min(limit, filtered.length)} de ${filtered.length} productos`)}</p></div>}</section>
     </main>
-    <footer><a href="#" className="logo-link" aria-label="Volver al inicio"><Logo /></a><span>© {new Date().getFullYear()} Elite Club</span></footer>
-    {toast && !modal && <div className="toast" role="status"><Icon name="check" />{toast}</div>}
-    {modal?.type === 'detail' && <Modal title="Detalle del producto" onClose={() => setModal(null)}><ProductDetail group={modal.product} products={products} initial={modal.initial} cart={items} onAdd={add} count={count} onCart={() => setModal({ type: 'cart' })} /></Modal>}
-    {modal?.type === 'cart' && <Modal title={`Tu carrito (${count})`} drawer onClose={() => setModal(null)}>{items.length ? <><div className="cart-items">{items.map(({ product: p, quantity }) => <article className="cart-item" key={p.id}><Photo product={p} /><div><p className="eyebrow">{p.brand}</p><h3>{p.name}</h3><div className="cart-variant"><span className="cart-swatch" role="img" aria-label={p.color} style={{ background: swatchFor(p) }} />{p.size !== '-' && <span>Talle {p.size}</span>}</div><div className="quantity"><button disabled={quantity === 1} aria-label={`Restar ${p.name}`} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity - 1))}>−</button><span>{quantity}</span><button disabled={quantity === 99} aria-label={`Sumar ${p.name}`} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity + 1))}>+</button></div></div><button className="icon-button" aria-label={`Eliminar ${p.name} del carrito`} onClick={() => setCart(c => removeItem(cartRows(c), p.id))}><Icon name="trash" /></button></article>)}</div><div className="cart-summary"><div><span>Total de prendas</span><strong>{count}</strong></div><p>Compra de demostración. Este catálogo no incluye precios ni procesa pagos.</p><button className="button dark" onClick={() => { setCart([]); setModal({ type: 'success', count }) }}>Confirmar pedido simulado <Icon name="arrow" /></button><button className="text-button" onClick={() => setModal({ type: 'empty-cart' })}>Vaciar carrito</button></div></> : <div className="empty"><Icon name="bag" width="44" height="44" /><h3>Carrito vacío</h3><p>Todavía no agregaste productos.</p><button className="button dark" onClick={() => { setModal(null); document.getElementById('catalogo').scrollIntoView() }}>Explorar colección</button></div>}</Modal>}
-    {modal?.type === 'empty-cart' && <Modal title="¿Vaciar tu carrito?" onClose={() => setModal({ type: 'cart' })}><p>Se quitarán todas las prendas que elegiste.</p><div className="modal-actions"><button className="button outline" onClick={() => setModal({ type: 'cart' })}>Cancelar</button><button className="button dark" onClick={() => { setCart([]); setModal({ type: 'cart' }) }}>Vaciar carrito</button></div></Modal>}
-    {modal?.type === 'success' && <Modal title="Pedido confirmado" onClose={() => setModal(null)}><div className="empty"><Icon name="check" width="48" height="48" /><h3>¡Pedido simulado confirmado!</h3><p>Elegiste {modal.count} prendas. El carrito quedó vacío.<br />No se realizó ningún cobro ni envío.</p><button className="button dark" onClick={() => setModal(null)}>Seguir explorando</button></div></Modal>}
+    <footer><div className="footer-identity"><a href="/" className="logo-link" aria-label={t("Volver al inicio")}><Logo /></a><span>© {new Date().getFullYear()} Elite Club</span></div></footer>
+    {toast && !modal && <div className="toast" role="status"><Icon name="check" />{t(toast)}</div>}
+    {modal?.type === 'search' && <Modal title={t("Buscar productos")} onClose={() => setModal(null)}><form className="site-search search" action="/catalogo"><label className="sr-only" htmlFor="header-search">{t("Buscar productos")}</label><input id="header-search" name="q" placeholder={t("Buscá tu próxima pieza")} defaultValue={query} autoFocus /><button type="submit" aria-label={t("Enviar búsqueda")}><Icon name="arrow" /></button></form></Modal>}
+    {modal?.type === 'detail' && <Modal title={t("Detalle del producto")} onClose={() => setModal(null)}><ProductDetail group={modal.product} products={products} initial={modal.initial} cart={items} onAdd={add} count={count} onCart={() => setModal({ type: 'cart' })} /></Modal>}
+    {modal?.type === 'auth' && <Modal title={t('Mi cuenta')} onClose={() => setModal(null)}><AuthForm /></Modal>}
+    {modal?.type === 'cart' && <Modal title={t(`Tu carrito (${count})`)} drawer onClose={() => setModal(null)}>{items.length ? <><div className="cart-items">{items.map(({ product: p, quantity }) => <article className="cart-item" key={p.id}><Photo product={p} /><div><p className="eyebrow">{p.brand}</p><h3>{p.name}</h3><div className="cart-variant"><span className="cart-swatch" role="img" aria-label={p.color} style={{ background: swatchFor(p) }} />{p.size !== '-' && <span>{t(`Talle ${p.size}`)}</span>}</div><div className="quantity"><button disabled={quantity === 1} aria-label={t(`Restar ${p.name}`)} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity - 1))}>−</button><span>{quantity}</span><button disabled={quantity === 99} aria-label={t(`Sumar ${p.name}`)} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity + 1))}>+</button></div></div><button className="icon-button" aria-label={t(`Eliminar ${p.name} del carrito`)} onClick={() => setCart(c => removeItem(cartRows(c), p.id))}><Icon name="trash" /></button></article>)}</div><div className="cart-summary"><div><span>{t("Total de prendas")}</span><strong>{count}</strong></div><button className="button dark" onClick={() => setModal({ type: 'checkout' })}>{t("Continuar")} <Icon name="arrow" /></button><button className="text-button" onClick={() => setModal({ type: 'empty-cart' })}>{t("Vaciar carrito")}</button></div></> : <div className="empty"><Icon name="bag" width="44" height="44" /><h3>{t("Carrito vacío")}</h3><p>{t("Todavía no agregaste productos.")}</p><button className="button dark" onClick={() => { setModal(null); document.getElementById('catalogo').scrollIntoView() }}>{t("Explorar colección")}</button></div>}</Modal>}
+    {modal?.type === 'empty-cart' && <Modal title={t("¿Vaciar tu carrito?")} onClose={() => setModal({ type: 'cart' })}><p>{t("Se quitarán todas las prendas que elegiste.")}</p><div className="modal-actions"><button className="button outline" onClick={() => setModal({ type: 'cart' })}>{t("Cancelar")}</button><button className="button dark" onClick={() => { setCart([]); setModal({ type: 'cart' }) }}>{t("Vaciar carrito")}</button></div></Modal>}
+    {modal?.type === 'checkout' && <Modal title="Finalizar compra" onClose={() => { if (!checkoutBusy) setModal(null) }}><CheckoutFlow items={items} onBusy={setCheckoutBusy} onBack={() => setModal({ type: 'cart' })} /></Modal>}
   </>
 }
 
+
+export default function LocalizedStore(props) { return <LanguageProvider><Store {...props} /></LanguageProvider> }

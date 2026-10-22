@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test'
+﻿import { test, expect } from '@playwright/test'
 for (const width of [390, 1440]) {
   test(`complete photos and product zoom at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    await page.goto('/')
+    await page.goto('/catalogo')
     await expect(page.locator('.announcement, .club-banner, .campaign-copy')).toHaveCount(0)
     for (const img of await page.locator('.campaign-images img').all()) {
       expect(await img.evaluate(el => getComputedStyle(el).objectFit)).toBe('contain')
@@ -12,7 +12,7 @@ for (const width of [390, 1440]) {
       expect(box.x + box.width).toBeLessThanOrEqual(parent.x + parent.width + 1)
     }
     const cardPhoto = page.locator('.catalog-zoom').first()
-    await cardPhoto.hover({ position: { x: 30, y: 30 } })
+    await cardPhoto.hover()
     await expect(cardPhoto).toHaveClass(/is-zoomed/)
     await page.getByRole('button', { name: 'Ver Nocta Cap', exact: true }).click()
     const dialog = page.getByRole('dialog')

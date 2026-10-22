@@ -1,6 +1,6 @@
-import { test, expect } from '@playwright/test'
-test('cart CRUD, persistence and simulated checkout', async ({ page }) => {
-  await page.goto('/')
+﻿import { test, expect } from '@playwright/test'
+test('cart CRUD, persistence and checkout authentication', async ({ page }) => {
+  await page.goto('/catalogo')
   await page.getByRole('button', { name: 'Agregar al carrito', exact: true }).first().click()
   await page.getByRole('button', { name: 'Carrito 1', exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -15,10 +15,9 @@ test('cart CRUD, persistence and simulated checkout', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Explorar colección' }).click()
   await page.getByRole('button', { name: 'Agregar al carrito', exact: true }).first().click()
   await page.getByRole('button', { name: 'Carrito 1', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Confirmar pedido simulado' }).click()
-  await expect(dialog.getByText('¡Pedido simulado confirmado!')).toBeVisible()
-  await dialog.getByRole('button', { name: 'Seguir explorando' }).click()
-  await expect(page.getByRole('button', { name: 'Carrito 0', exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Iniciar sesi\u00f3n', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v1')).cart)).toHaveLength(1)
 })
 test('catalog ignores legacy edits while preserving favorites and the cart', async ({ page }) => {
   await page.addInitScript(() => {
@@ -27,7 +26,7 @@ test('catalog ignores legacy edits while preserving favorites and the cart', asy
       cart: [{ id: 'elite-2', quantity: 2 }], favorites: ['elite-2'],
     }))
   })
-  await page.goto('/')
+  await page.goto('/catalogo')
   await expect(page.getByRole('button', { name: /Gestionar catálogo|Nuevo producto|Editar|Eliminar producto/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Ver Nocta Cap', exact: true })).toBeVisible()
   await expect(page.getByText('Producto modificado')).toHaveCount(0)
@@ -42,7 +41,7 @@ test('catalog ignores legacy edits while preserving favorites and the cart', asy
 })
 test('mobile layout and product images', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/')
+  await page.goto('/catalogo')
   await expect(page.locator('.product-card')).toHaveCount(12)
   await page.locator('#catalogo').scrollIntoViewIfNeeded()
   await expect.poll(() => page.locator('.product-card img').first().evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true)

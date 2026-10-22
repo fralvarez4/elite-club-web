@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test'
+﻿import { test, expect } from '@playwright/test'
 
 test('adding from product detail confirms in place and persists', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalogo')
   await page.getByRole('button', { name: 'Ver Nocta Cap', exact: true }).click()
   const detail = page.getByRole('dialog')
   await detail.getByRole('button', { name: 'Agregar al carrito', exact: true }).click()
@@ -19,7 +19,7 @@ test('adding from product detail confirms in place and persists', async ({ page 
 for (const width of [390, 768, 1440]) {
   test(`three columns and unclipped brands at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    await page.goto('/')
+    await page.goto('/catalogo')
     await expect(page.locator('.product-card')).toHaveCount(12)
     const columns = await page.locator('.product-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)
     expect(columns).toBe(3)

@@ -1,3 +1,8 @@
 import Store from '../src/components/Store'
-import products from '../src/data/products.json'
-export default function Page() { return <Store initialProducts={products} /> }
+import { connection } from 'next/server'
+import { getProducts } from '../src/lib/products'
+export default async function Page() {
+  await connection()
+  const products = await getProducts()
+  return <Store initialProducts={products} />
+}

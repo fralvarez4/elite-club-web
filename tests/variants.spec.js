@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+﻿import { test, expect } from '@playwright/test'
 import { groupProducts, resolveCart } from '../src/lib/catalog.js'
 import { swatchFor } from '../src/lib/swatches.js'
 import { readFileSync } from 'node:fs'
@@ -9,28 +9,28 @@ test('grouping retains all rows, deduplicates combinations, preserves brands and
   expect(groups).toHaveLength(43)
   expect(groups.flatMap(g => g.sourceIds).sort()).toEqual(products.map(p => p.id).sort())
   const cap = groups.find(g => g.name === 'Corteiz Cap')
-  expect(cap.variants.map(v => v.color)).toEqual(['Negro', 'Azul', 'Naranja'])
+  expect(cap.variants.map(v => v.color)).toEqual(['Black', 'Blue', 'Orange'])
   expect(cap.variants[0].sourceIds).toHaveLength(3)
-  expect(groups.find(g => g.name === 'Off White Tee Basic').variants[0].color).toBe('Blanco')
+  expect(groups.find(g => g.name === 'Off White Tee Basic').variants[0].color).toBe('White')
   const oldCart = resolveCart([{ id: 'elite-14', quantity: 1 }, { id: 'elite-15', quantity: 2 }, { id: 'elite-16', quantity: 1 }], groups)
   expect(oldCart.map(i => [i.id, i.quantity])).toEqual([['elite-13', 3], ['elite-16', 1]])
-  expect(swatchFor({ color: 'Negro / Naranja', image: '/products/image25.webp' })).toBe('linear-gradient(135deg, #191919 0% 50%, #e77828 50% 100%)')
+  expect(swatchFor({ color: 'Black / Orange', image: '/products/image25.webp' })).toBe('linear-gradient(135deg, #191919 0% 50%, #e77828 50% 100%)')
 })
 
 test('one cap card, selectable colors, separate cart variants and persistence', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalogo')
   await page.getByPlaceholder('Buscá tu próxima pieza').fill('Corteiz Cap')
   await expect(page.locator('.product-card')).toHaveCount(1)
   const card = page.locator('.product-card')
   await expect(card.locator('.sizes')).toHaveCount(0)
   await expect(card.locator('.colors')).toHaveText('')
   await card.getByRole('button', { name: 'Agregar al carrito', exact: true }).click()
-  await card.getByRole('button', { name: 'Azul', exact: true }).click()
+  await card.getByRole('button', { name: 'Blue', exact: true }).click()
   await card.getByRole('button', { name: 'Agregar al carrito', exact: true }).click()
   await page.getByRole('button', { name: 'Carrito 2', exact: true }).click()
   await expect(page.locator('.cart-item')).toHaveCount(2)
-  await expect(page.getByRole('dialog').getByRole('img', { name: 'Negro', exact: true })).toBeVisible()
-  await expect(page.getByRole('dialog').getByRole('img', { name: 'Azul', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('img', { name: 'Black', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('img', { name: 'Blue', exact: true })).toBeVisible()
   await expect(page.getByRole('dialog').getByText(/Talle/)).toHaveCount(0)
   await page.reload()
   await page.getByRole('button', { name: 'Carrito 2', exact: true }).click()
@@ -38,7 +38,7 @@ test('one cap card, selectable colors, separate cart variants and persistence', 
 })
 
 test('size availability follows color and quick add requests a size', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalogo')
   await page.getByPlaceholder('Buscá tu próxima pieza').fill('Supreme S/S Top')
   await expect(page.locator('.product-card')).toHaveCount(1)
   await page.locator('.quick-add').click()
@@ -47,21 +47,22 @@ test('size availability follows color and quick add requests a size', async ({ p
   await expect(detail.getByRole('button', { name: 'Talle XS · No disponible', exact: true })).toBeDisabled()
   await detail.getByRole('button', { name: 'Talle M', exact: true }).click()
   await detail.getByRole('button', { name: 'Agregar al carrito', exact: true }).click()
-  await detail.getByRole('button', { name: 'Negro', exact: true }).click()
+  await detail.getByRole('button', { name: 'Black', exact: true }).click()
   await expect(detail.getByRole('button', { name: 'Talle M · No disponible', exact: true })).toBeDisabled()
   await expect(detail.getByRole('button', { name: 'Agregar al carrito', exact: true })).toBeDisabled()
   await detail.getByRole('button', { name: 'Talle XL', exact: true }).click()
   await detail.getByRole('button', { name: 'Agregar al carrito', exact: true }).click()
   await detail.getByRole('button', { name: 'Ver carrito (2)', exact: true }).click()
-  await expect(page.getByRole('dialog').getByRole('img', { name: 'Blanco', exact: true })).toBeVisible()
-  await expect(page.getByRole('dialog').getByRole('img', { name: 'Negro', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('img', { name: 'White', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('img', { name: 'Black', exact: true })).toBeVisible()
   await expect(page.getByText('Talle M', { exact: true })).toBeVisible()
   await expect(page.getByText('Talle XL', { exact: true })).toBeVisible()
 })
 
 test('size filter keeps one model and removal only affects the cart', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalogo')
   await page.getByPlaceholder('Buscá tu próxima pieza').fill('Bape Shark')
+  await page.locator('.filter-panel > summary').click()
   await page.getByRole('combobox', { name: 'Filtrar por talle' }).selectOption('XL')
   await expect(page.locator('.product-card')).toHaveCount(1)
   await page.locator('.product-card').locator('summary').click()

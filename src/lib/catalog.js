@@ -11,7 +11,7 @@ export function productIdentity(product) {
   const name = product.name.trim().replace(/\s+/g, ' ')
   const prefix = name.toLowerCase().startsWith(product.brand.toLowerCase() + ' ') ? name.slice(0, product.brand.length) : ''
   const body = prefix ? name.slice(prefix.length).trim() : name
-  const colors = [...body.matchAll(colorPattern)].map(match => COLORS[match[0].toLowerCase()])
+  const colors = [...body.matchAll(colorPattern)].map(match => match[0])
   const model = `${prefix} ${body.replace(colorPattern, '').replace(/\s*\/\s*(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim()}`.trim()
     .replace(/^Corteiz Hoodie Alcatraz$/i, 'Corteiz Alcatraz Hoodie')
   return { model, color: [...new Set(colors)].join(' / ') || 'Sin especificar' }
