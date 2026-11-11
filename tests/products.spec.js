@@ -71,7 +71,7 @@ test('partial configuration or non-publishable credentials fail explicitly witho
 test('seed preserves all 74 IDs, fields and positions and is reproducible', () => {
   const sql = generateProductsSeed(products)
   expect(products).toHaveLength(74)
-  expect(sql).toBe(readFileSync(new URL('../supabase/seed.sql', import.meta.url), 'utf8'))
+  expect(sql).toBe(readFileSync(new URL('../supabase/seed.sql', import.meta.url), 'utf8').replaceAll('\r\n', '\n'))
   for (const [index, product] of products.entries()) {
     const values = ['id', 'name', 'size', 'brand', 'type', 'image'].map(field => `'${product[field].replaceAll("'", "''")}'`)
     expect(sql).toContain(`(${[...values, index].join(', ')})`)

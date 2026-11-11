@@ -56,6 +56,7 @@ async function mockAuth(context) {
   return state
 }
 async function openLogin(page) {
+  await expect(page.locator('.nav-trigger').first()).toBeEnabled()
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByLabel('Email', { exact: true })).toBeVisible()
@@ -382,6 +383,25 @@ test('missing profile fields open a form that only updates those fields and keep
   await page.reload()
   await page.locator('.account-button').click()
   await expect(page.getByText('EC-000001', { exact: true })).toBeVisible()
+})
+
+test('completed profile can edit contact and delivery details without changing role', async ({ page, context }) => {
+  const state = await mockAuth(context)
+  await page.goto('/')
+  const dialog = await login(page)
+  await dialog.getByRole('button', { name: 'Editar perfil' }).click()
+  await dialog.getByLabel('Teléfono', { exact: true }).fill('11 1234 5678')
+  await dialog.getByLabel('Calle', { exact: true }).fill('San Martín')
+  await dialog.getByLabel('Número', { exact: true }).fill('123')
+  await dialog.getByLabel('Código postal', { exact: true }).fill('1000')
+  await dialog.getByLabel('Ciudad', { exact: true }).fill('CABA')
+  await dialog.getByLabel('Provincia', { exact: true }).fill('Buenos Aires')
+  await dialog.getByRole('button', { name: 'Guardar perfil' }).click()
+  await expect(dialog.getByText('11 1234 5678')).toBeVisible()
+  expect(state.profileRequests.filter(request => request.method === 'PATCH')[0].body).toMatchObject({
+    phone: '11 1234 5678', street: 'San Martín', street_number: '123', postal_code: '1000', city: 'CABA', province: 'Buenos Aires',
+  })
+  expect(state.profile.role).toBe('user')
 })
 
 test('missing database profile is reported, never created by the frontend', async ({ page, context }) => {

@@ -259,13 +259,15 @@ test('all API error adapters preserve safe 429 + Retry-After, reject malformed r
 
 test('checkout does not call provider on blocked/unavailable quota; provider failure consumes quota first', async () => {
   const id = '44444444-4444-4444-8444-444444444444'
-  const order = { id, user_id:users[0], status:'pending', subtotal:10, shipping_cost:0, total:10, order_delivery:{ method:'pickup' }, order_items:[{ product_id:'a',quantity:1,unit_price:10,products:{ name:'Prenda' } }] }
+  const order = { id, user_id:users[0], status:'pending', pricing_version:'usd_mep_v1', subtotal:10, shipping_cost:0, total:10, order_delivery:{ method:'pickup' }, order_items:[{ product_id:'a',quantity:1,unit_price:10,products:{ name:'Prenda' } }] }
   const events = []
   const query = { select:() => query, eq:() => query, maybeSingle:async () => ({ data:order }) }
   let rpcResult = { error:{ code:'PT429',details:'{"retry_after":10}' } }
   const client = { auth:{ getUser:async () => ({ data:{ user:{ id:users[0] } } }) },from:() => query,rpc:async () => { events.push('quota'); return rpcResult } }
   const request = () => new Request('http://localhost:3000/api/v1/checkout',{ method:'POST',headers:{ Origin:'http://localhost:3000','Content-Type':'application/json' },body:JSON.stringify({ order_id:id }) })
-  const options = { appUrl:'https://8.8.8.8',token:'test-only',fetch:async () => { events.push('provider'); throw new Error('provider fail') } }
+  const options = { appUrl:'https://8.8.8.8',token:'test-only',
+    preferenceClient:{ rpc:async name => ({ data:name === 'elite_claim_checkout_preference' ? { state:'claimed', claim_token:'33333333-3333-4333-8333-333333333333' } : true }) },
+    fetch:async () => { events.push('provider'); throw new Error('provider fail') } }
   await assert.rejects(createCheckout(request(),client,options),{ code:'PT429' })
   assert.deepEqual(events,['quota'])
   rpcResult = { error:{ code:'PGRST202' } }

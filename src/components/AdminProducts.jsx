@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-const labels = { name: 'Nombre', price: 'Precio (ARS)', size: 'Talle', brand: 'Marca', type: 'Tipo', image: 'Imagen (ruta o URL HTTPS)', sort_order: 'Orden en el catálogo' }
+const labels = { name: 'Nombre', price: 'Precio (USD)', size: 'Talle', brand: 'Marca', type: 'Tipo', image: 'Imagen (ruta o URL HTTPS)', sort_order: 'Orden en el catálogo' }
 const empty = { name: '', price: '', size: '', brand: '', type: '', image: '', sort_order: 0 }
 
 async function requestProducts(path = '', options) {

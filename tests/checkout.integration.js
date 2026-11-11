@@ -18,6 +18,8 @@ for (const method of ['shipping', 'pickup']) test(`delivery UI ${method}: review
   await page.getByRole('button', { name: 'Carrito 1', exact: true }).click()
   await page.getByRole('button', { name: 'Continuar', exact: true }).click()
   await page.getByRole('radio', { name: method === 'pickup' ? 'Retiro gratis' : 'Envío gratis a domicilio', exact: true }).check()
+  await expect(page.getByLabel('Teléfono', { exact: true })).toHaveValue('1112345678')
+  if (method === 'shipping') await expect(page.getByLabel('Calle', { exact: true })).toHaveValue('San Martin')
   await page.getByLabel('Nombre', { exact: true }).fill('Ana')
   await page.getByLabel('Apellido', { exact: true }).fill('Perez')
   await page.getByLabel('Teléfono', { exact: true }).fill('123456789')
@@ -30,6 +32,9 @@ for (const method of ['shipping', 'pickup']) test(`delivery UI ${method}: review
   await page.getByRole('button', { name: 'Revisar pedido' }).click()
   await expect(page.getByRole('heading', { name: 'Revisión del pedido' })).toBeVisible()
   expect((await (await context.request.get('/api/v1/orders')).json()).orders).toHaveLength(0)
+  await page.getByRole('button', { name: 'Cotizar pedido en ARS' }).click()
+  await expect(page.getByText('Total a pagar (ARS)')).toBeVisible()
+  await expect(page.locator('.account-details strong')).toContainText('100.000,00')
   let attempts = 0
   const orderIds = []
   await page.route('**/api/v1/checkout', async route => {
@@ -43,7 +48,7 @@ for (const method of ['shipping', 'pickup']) test(`delivery UI ${method}: review
   expect(orderIds[0]).toBe(orderIds[1])
   const orders = (await (await context.request.get('/api/v1/orders')).json()).orders
   expect(orders).toHaveLength(1)
-  expect(orders[0]).toMatchObject({ subtotal: 100, shipping_cost: 0, total: 100, order_delivery: { method } })
+  expect(orders[0]).toMatchObject({ subtotal: 100000, shipping_cost: 0, total: 100000, fx_rate: 1000, order_delivery: { method } })
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v1')).cart)).toEqual([{ id, quantity: 1 }])
   await page.unroute('**/api/v1/checkout')
   await page.route('**/api/v1/checkout', route => route.fulfill({ json: { init_point: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=test' } }))
@@ -77,10 +82,17 @@ test('only owner can checkout; historical amounts and pending status are preserv
   const response = await result.json()
   expect(Object.keys(response).sort()).toEqual(['init_point', 'preference_id'])
   expect(JSON.stringify(response)).not.toContain('fixture-mp-token')
+  const retry = await checkout(context, { order_id: order.id })
+  expect(retry.status()).toBe(201)
+  expect(await retry.json()).toEqual(response)
+  expect(await (await api.get(`${backend}/fixtures/preferences`)).json()).toHaveLength(1)
   const sent = (await (await api.get(`${backend}/fixtures/preferences`)).json())[0]
-  expect(sent).toMatchObject({ external_reference: order.id, auto_return: 'approved', items: [{ title: 'Prenda Elite', quantity: 2, unit_price: 10.5, currency_id: 'ARS' }] })
+  expect(sent).toMatchObject({ external_reference: order.id, auto_return: 'approved', items: [{ title: 'Prenda Elite', quantity: 2, unit_price: 10500, currency_id: 'ARS' }] })
   for (const state of ['success', 'pending', 'failure']) expect(sent.back_urls[state]).toBe(`https://8.8.8.8/?checkout=${state}&order_id=${order.id}`)
   expect((await (await api.get(`/api/v1/orders/${order.id}`)).json()).order).toEqual(order)
+  await api.post(`${backend}/fixtures/order-change`, { data: { id: order.id, changes: { pricing_version: 'legacy_ars' } } })
+  expect((await checkout(context, { order_id: order.id })).status()).toBe(409)
+  await api.post(`${backend}/fixtures/order-change`, { data: { id: order.id, changes: { pricing_version: 'usd_mep_v1' } } })
   for (const status of ['approved', 'cancelled', 'rejected']) {
     await api.post(`${backend}/fixtures/order-change`, { data: { id: order.id, changes: { status } } })
     expect((await checkout(context, { order_id: order.id })).status()).toBe(409)

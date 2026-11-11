@@ -6,6 +6,7 @@ import { deliverySchema } from '../lib/delivery'
 import AuthForm from './AuthForm'
 
 const money = value => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
+const dollars = value => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD' }).format(value)
 const contact = [['first_name', 'Nombre', 100], ['last_name', 'Apellido', 100], ['phone', 'Teléfono', 50]]
 const address = [['street', 'Calle', 200], ['street_number', 'Número', 30], ['apartment', 'Piso / departamento (opcional)', 100], ['postal_code', 'Código postal', 20], ['city', 'Ciudad', 100], ['province', 'Provincia', 100], ['instructions', 'Indicaciones (opcional)', 1000]]
 
@@ -39,7 +40,7 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
   }, [load])
   const option = options?.find(value => value.method === (delivery?.method || method))
   const validPrices = items.length > 0 && items.every(({ product, quantity }) => Number.isFinite(Number(product.price)) && Number(product.price) > 0 && Number.isInteger(quantity) && quantity > 0)
-  const subtotal = items.reduce((sum, { product, quantity }) => sum + Math.round(Number(product.price) * 100) * quantity, 0) / 100
+  const subtotalUsd = items.reduce((sum, { product, quantity }) => sum + Math.round(Number(product.price) * 100) * quantity, 0) / 100
   const shipping = Number(option?.cost)
   const ready = validPrices && option && Number.isFinite(shipping) && shipping >= 0
 
@@ -71,9 +72,8 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
           }
           throw failure
         }
-        if (Math.round(Number(current.total) * 100) !== Math.round((subtotal + shipping) * 100)) {
-          setError('El importe cambió al crear el pedido. Revisá el total actualizado y confirmá nuevamente para continuar.'); return
-        }
+        // La RPC fija el tipo de cambio y los importes ARS. Se muestran antes de redirigir.
+        return
       }
       const result = await jsonRequest('/api/v1/checkout', { order_id: current.id })
       window.location.assign(result.init_point)
@@ -93,7 +93,7 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
             return <label key={value}><input type="radio" name="method" value={value} checked={method === value} disabled={!available} onChange={() => setMethod(value)} />{value === 'shipping' ? 'Envío' : 'Retiro'}{Number(available?.cost) === 0 ? ' gratis' : available ? ` · ${money(available.cost)}` : ' no disponible'}{value === 'shipping' ? ' a domicilio' : ''}</label>
           })}
         </fieldset>
-        {[...contact, ...(method === 'shipping' ? address : [])].map(([name, label, max]) => <label key={name}>{label}<input name={name} type={name === 'phone' ? 'tel' : 'text'} maxLength={max} required={!['apartment', 'instructions'].includes(name)} defaultValue={draft[name] ?? (contact.some(([field]) => field === name) ? profile?.[name] || '' : '')} /></label>)}
+        {[...contact, ...(method === 'shipping' ? address : [])].map(([name, label, max]) => <label key={name}>{label}<input name={name} type={name === 'phone' ? 'tel' : 'text'} maxLength={max} required={!['apartment', 'instructions'].includes(name)} defaultValue={draft[name] ?? profile?.[name] ?? ''} /></label>)}
         {method === 'pickup' && option && <Pickup option={option} />}
         {!validPrices && <p role="alert">No pudimos obtener los precios actuales. Actualizá el catálogo antes de continuar.</p>}
         <button className="button dark" disabled={!ready}>Revisar pedido</button>
@@ -103,10 +103,12 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
         <ul className="checkout-items">{items.map(({ product, quantity }) => <li key={product.id}>{product.name} · {product.size} × {quantity}</li>)}</ul>
         <p>{delivery.first_name} {delivery.last_name} · {delivery.phone}</p>
         {delivery.method === 'pickup' ? <Pickup option={order?.order_delivery || option} /> : <p>{delivery.street} {delivery.street_number} {delivery.apartment}<br />{delivery.postal_code} · {delivery.city} · {delivery.province}<br />{delivery.instructions}</p>}
-        <dl className="account-details"><dt>Subtotal</dt><dd>{money(order?.subtotal ?? subtotal)}</dd><dt>Envío</dt><dd>{money(order?.shipping_cost ?? shipping)}</dd><dt>Total</dt><dd><strong>{money(order?.total ?? subtotal + shipping)}</strong></dd></dl>
-        {!order && <p className="auth-message">Los importes se verifican al confirmar el pago.</p>}
+        <dl className="account-details"><dt>Productos (precio base USD)</dt><dd>{dollars(subtotalUsd)}</dd><dt>Envío (ARS)</dt><dd>{money(order?.shipping_cost ?? shipping)}</dd>
+          {order && <><dt>Subtotal convertido (ARS)</dt><dd>{money(order.subtotal)}</dd><dt>Total a pagar (ARS)</dt><dd><strong>{money(order.total)}</strong></dd></>}</dl>
+        {!order && <p className="auth-message">Cotizá el pedido para ver el importe exacto en ARS antes de ir a Mercado Pago.</p>}
+        {order && <p className="auth-message">{Number(order.fx_rate) > 0 ? `Cotización MEP aplicada: ${new Intl.NumberFormat('es-AR').format(Number(order.fx_rate))} ARS/USD. ` : ''}El total de este pedido queda fijo.</p>}
         {order && <p className="auth-message">Pedido pendiente: {order.id}. Si el pago falla, podés reintentar con este mismo pedido.</p>}
-        <button className="button dark" disabled={busy || !ready || uncertain} onClick={pay}>{busy ? 'Procesando…' : 'Pagar con Mercado Pago'}</button>
+        <button className="button dark" disabled={busy || !ready || uncertain} onClick={pay}>{busy ? 'Procesando…' : order ? 'Pagar con Mercado Pago' : 'Cotizar pedido en ARS'}</button>
         {!order && <button className="text-button" disabled={busy || uncertain} onClick={() => { setDelivery(null); setError('') }}>Editar entrega</button>}
       </>}
   </div>
