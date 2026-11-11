@@ -1,6 +1,6 @@
 # Entrega final — Elite Club
 
-Estado al 11/11/2026. Este documento distingue código local de integraciones verificadas en servicios externos.
+Estado al 11/11/2026. Los cambios están en la rama `entrega-preview-2026-11-11`; `main` conserva la versión pública anterior. Este documento distingue pruebas automatizadas de integraciones verificadas en servicios externos.
 
 ## Plan priorizado
 
@@ -16,7 +16,7 @@ La URL obligatoria `https://indexitba.estebanpiazza.com.ar/grilla.html` no respo
 
 | Criterio | Estado verificable | Falta para Excelente |
 | --- | --- | --- |
-| E1 Repo, CI/CD y preview PR | Repositorio local; workflow CI y plantilla PR preparados | Commit, ejecución verde en GitHub y preview Vercel por PR |
+| E1 Repo, CI/CD y preview PR | Rama publicada; [CI verde](https://github.com/fralvarez4/elite-club-web/actions/runs/43119562572) y [preview Vercel exitoso](https://vercel.com/franco-fc75/elite-club-web/3yfdhTtaiibxiPa5AaQuJC2nmR3s) | Abrir PR hacia `main` y verificar el checklist en él |
 | E2 Landing responsive | UI probada en escritorio y móvil | Validación manual final de accesibilidad |
 | E3 Formularios dinámicos | Auth, perfil, entrega y admin con validaciones y fetch probados | Recorrido real con Supabase desplegado |
 | E4 Catálogo y API | Catálogo y APIs probados; plantilla checklist PR preparada | Usar checklist en PR y verificar despliegue |
@@ -73,7 +73,7 @@ Se usa [DolarAPI, Dólar Bolsa](https://ar.dolarapi.com/docs/argentina/operation
 - Codex no se conectó directamente a Supabase remoto ni al panel de Mercado Pago. El dueño ejecutó manualmente las migraciones `009`, `010`, `011` y `012` en Supabase Production desde SQL Editor; informó `Success` en cada una. Aún no se habilitaron cobros reales.
 - Antes de las migraciones, el dueño verificó 74 productos con precios base USD y ningún precio nulo/no positivo. Había cinco pedidos de prueba `pending`, ninguno aprobado, con importes 40–255 interpretados antes como ARS. Las migraciones `009`–`012` fueron informadas como aplicadas correctamente, pero aún no se hizo un pedido de prueba real con la nueva versión. El código nuevo rechaza el Checkout de pedidos `legacy_ars`.
 - El dueño comprobó que el Site URL y las dos redirect URLs del dominio `eliteclubstore.vercel.app` están configurados en Supabase; Email y Google figuran habilitados. Los métodos de envío y retiro están activos con costo cero; el dueño indicó que sus datos concretos no son relevantes para la evaluación.
-- El sitio público está en Vercel y el dueño ya tiene acceso a sus variables. `SUPABASE_SERVICE_ROLE_KEY` fue guardada en Production. `APP_URL` existe, pero su valor no puede verse sin verificación; se asume pendiente de comprobar. Tampoco tiene acceso a la aplicación de Mercado Pago. GitHub Actions registra cero ejecuciones porque el workflow nuevo no se ha subido.
+- El sitio público está en Vercel y el dueño ya tiene acceso a sus variables. `SUPABASE_SERVICE_ROLE_KEY` fue guardada en Production. `APP_URL` existe, pero su valor no puede verse sin verificación; se asume pendiente de comprobar. Tampoco tiene acceso a la aplicación de Mercado Pago. El workflow de la rama de preview pasó lint, build, rate limit, 85 pruebas principales y pruebas HTTP de administración. El preview se desplegó correctamente, pero no tiene las variables de Supabase y Turnstile en el entorno Preview: muestra el catálogo de respaldo sin precios y no permite probar el acceso real. El dueño no puede modificar esas variables por falta de verificación de Vercel; esta limitación no demuestra un fallo del entorno Production.
 
 ### Checklist único de Vercel y Mercado Pago
 
@@ -92,7 +92,7 @@ En **Vercel → proyecto de `eliteclubstore.vercel.app` → Settings → Environ
 
 En **Mercado Pago Developers → Tus integraciones**, el responsable debe abrir la aplicación vinculada al token existente y confirmar **Checkout Pro + Preferences**. En **Configuración de Webhooks**, seleccionar el entorno de prueba y el evento **Payments**, configurar `https://eliteclubstore.vercel.app/api/v1/payments/webhook`, guardar y copiar la firma secreta directamente a Vercel. Configurar el ID de vendedor de la misma cuenta. No combinar token, firma y vendedor de aplicaciones o entornos distintos. El Checkout del código falla cerrado mientras falten estas variables.
 
-Secuencia de publicación: (1) completar/confirmar variables y webhook de prueba, (2) revisar diff y hacer commit/push autorizado, (3) esperar CI verde y despliegue Vercel, (4) probar catálogo, login, admin y pedido USD→ARS, (5) pagar sólo con comprador y credenciales de prueba, verificar `payment_events` y `orders.status = approved` una vez, (6) comprobar preview por PR y preparar la demo. No habilitar cobros reales hasta terminar las pruebas y recibir autorización.
+Secuencia de publicación desde la rama de preview: (1) abrir PR con checklist y CI verde, (2) completar/confirmar variables de Production y webhook de prueba de Mercado Pago, (3) autorizar merge a `main` y esperar el despliegue Vercel, (4) probar catálogo, login, admin y pedido USD→ARS en Production, (5) pagar sólo con comprador y credenciales de prueba, verificar `payment_events` y `orders.status = approved` una vez, (6) preparar la demo. No habilitar cobros reales hasta terminar las pruebas y recibir autorización.
 
 ### Recuperación de una Preference incierta
 
@@ -106,4 +106,4 @@ Si Checkout devuelve 409 porque la Preference permanece en `creating`, identific
 4. Crear un pedido de prueba nuevo. Confirmar el total ARS antes de Checkout Pro. Usar sólo credenciales y comprador de prueba.
 5. Verificar el webhook y el estado `approved` desde la base. Repetir la notificación para demostrar idempotencia. No afirmar que el retorno del navegador confirma el pago.
 6. Mostrar el panel admin, permisos RLS, un cambio de precio USD y su reflejo en catálogo. Explicar que los pedidos conservan sus precios históricos.
-7. Abrir el PR con checklist, CI verde y preview Vercel. Estos tres resultados requieren push y acceso a Vercel; todavía no están verificados.
+7. Abrir el PR con checklist, CI verde y preview Vercel. CI y el despliegue de preview ya se verificaron; el preview no puede probar datos reales hasta recibir variables de Preview.
