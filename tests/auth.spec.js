@@ -87,12 +87,15 @@ test('Turnstile prevents missing tokens, rejects invalid tokens and renews after
   const dialog = await openLogin(page)
   await expect.poll(() => page.evaluate(() => window.captchaTest?.renders || 0)).toBeGreaterThan(0)
   await page.evaluate(() => { window.captchaTest.auto = false; window.captchaTest.expire() })
+  const rendersBeforeMissingToken = await page.evaluate(() => window.captchaTest.renders)
   await fillCredentials(dialog)
   await dialog.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
   await expect(dialog.getByRole('alert').filter({ hasText: 'Completá la verificación' })).toBeVisible()
   expect(state.requests.filter(r => r.search.get('grant_type') === 'password')).toHaveLength(0)
+  await expect.poll(() => page.evaluate(() => window.captchaTest.renders)).toBeGreaterThan(rendersBeforeMissingToken)
   await page.evaluate(() => window.captchaTest.solve())
   state.loginError = 'captcha_failed'
+  const rendersBeforeRejectedToken = await page.evaluate(() => window.captchaTest.renders)
   await dialog.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
   await expect(dialog.getByRole('alert').filter({ hasText: 'fue rechazada' })).toBeVisible()
   const first = state.requests.find(r => r.search.get('grant_type') === 'password')
@@ -102,6 +105,7 @@ test('Turnstile prevents missing tokens, rejects invalid tokens and renews after
   await dialog.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
   expect(state.requests.filter(r => r.search.get('grant_type') === 'password')).toHaveLength(1)
   state.loginError = null
+  await expect.poll(() => page.evaluate(() => window.captchaTest.renders)).toBeGreaterThan(rendersBeforeRejectedToken)
   await page.evaluate(() => window.captchaTest.solve())
   await dialog.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
   await expect(dialog.getByText(email, { exact: true })).toBeVisible()
