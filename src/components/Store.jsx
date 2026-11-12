@@ -49,11 +49,17 @@ function ProductZoom({ product, compact = false }) {
     <Photo product={product} loading={compact ? 'lazy' : 'eager'} />
   </span>
 }
-function Modal({ title, onClose, children, drawer = false }) {
+function Modal({ title, onClose, children, drawer = false, guardChanges = false, formResetKey }) {
   const { t } = useLanguage()
   const ref = useRef(null)
+  const [dirty, setDirty] = useState(false)
   useEffect(() => { const dialog = ref.current; dialog.showModal(); const previous = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = previous } }, [])
-  return <dialog ref={ref} className={drawer ? 'modal drawer' : 'modal'} onCancel={event => { event.preventDefault(); onClose() }} onClick={e => { if (e.target === e.currentTarget) onClose() }}><div className="modal-head"><h2>{title}</h2><button className="icon-button" aria-label={t("Cerrar")} onClick={onClose}><Icon name="close" /></button></div>{children}</dialog>
+  useEffect(() => { setDirty(false) }, [formResetKey])
+  function close() {
+    if (guardChanges && dirty && !window.confirm(t('Hay cambios sin guardar. ¿Querés cerrar esta ventana?'))) return
+    onClose()
+  }
+  return <dialog ref={ref} className={drawer ? 'modal drawer' : 'modal'} onInputCapture={() => setDirty(true)} onChangeCapture={() => setDirty(true)} onCancel={event => { event.preventDefault(); close() }} onClick={event => { if (!guardChanges && event.target === event.currentTarget) close() }}><div className="modal-head"><h2>{title}</h2><button className="icon-button" aria-label={t("Cerrar")} onClick={close}><Icon name="close" /></button></div>{children}</dialog>
 }
 function useVariantSelection(group, initial = {}) {
   const [color, setColor] = useState(initial.color || group.variants[0].color)
@@ -120,12 +126,15 @@ function ProductDetail({ group, products, initial, cart, onAdd, onCart, count })
 }
 function Store({ initialProducts, initialFilters = {} }) {
   const { t } = useLanguage()
-  const { user, returningFromEmail, acknowledgeEmailReturn, profile } = useAuth()
+  const { user, loading: authLoading, returningFromEmail, acknowledgeEmailReturn, profile } = useAuth()
 
   const products = initialProducts
   const [cart, setCart] = useState([])
   const [favorites, setFavorites] = useState([])
-  const [ready, setReady] = useState(false)
+  const [storageScope, setStorageScope] = useState(null)
+  const previousScope = useRef(null)
+  const scope = authLoading ? null : (user?.id || 'guest')
+  const ready = Boolean(scope && storageScope === scope)
   const [query, setQuery] = useState(initialFilters.query || '')
   const [category, setCategory] = useState(initialFilters.category || 'Todo')
   const [department, setDepartment] = useState(initialFilters.department || '')
@@ -169,20 +178,56 @@ function Store({ initialProducts, initialFilters = {} }) {
   const [toast, setToast] = useState('')
   const [limit, setLimit] = useState(12)
   useEffect(() => {
-    try { const data = JSON.parse(localStorage.getItem('elite-club-v1') || 'null'); if (data) { if (Array.isArray(data.cart)) setCart(data.cart.filter(i => typeof i.id === 'string' && Number.isInteger(i.quantity) && i.quantity > 0 && i.quantity <= 99)); if (Array.isArray(data.favorites)) setFavorites(data.favorites.filter(i => typeof i === 'string')) } } catch { setToast('No pudimos recuperar los datos guardados.') } setReady(true)
-  }, [])
-  useEffect(() => { if (ready) { try { localStorage.setItem('elite-club-v1', JSON.stringify({ cart, favorites })) } catch { setToast('El navegador no permite guardar los cambios. Se conservarán durante esta visita.') } } }, [cart, favorites, ready])
+    if (!scope) return
+    try {
+      // La clave antigua mezclaba sesiones: se descarta para no mostrar compras de otra cuenta.
+      localStorage.removeItem('elite-club-v1')
+      if (scope === 'guest' && previousScope.current && previousScope.current !== 'guest') sessionStorage.removeItem('elite-club-v2:guest')
+      const storage = scope === 'guest' ? sessionStorage : localStorage
+      const data = JSON.parse(storage.getItem(`elite-club-v2:${scope}`) || 'null')
+      let nextCart = Array.isArray(data?.cart) ? data.cart.filter(i => typeof i.id === 'string' && Number.isInteger(i.quantity) && i.quantity > 0 && i.quantity <= 99) : []
+      let nextFavorites = Array.isArray(data?.favorites) ? data.favorites.filter(i => typeof i === 'string') : []
+      if (scope !== 'guest' && previousScope.current === 'guest') {
+        const guest = JSON.parse(sessionStorage.getItem('elite-club-v2:guest') || 'null')
+        const counts = new Map(nextCart.map(item => [item.id, item.quantity]))
+        for (const item of Array.isArray(guest?.cart) ? guest.cart : []) {
+          if (typeof item.id === 'string' && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 99) counts.set(item.id, Math.min(99, (counts.get(item.id) || 0) + item.quantity))
+        }
+        nextCart = [...counts].map(([id, quantity]) => ({ id, quantity }))
+        nextFavorites = [...new Set([...nextFavorites, ...(Array.isArray(guest?.favorites) ? guest.favorites.filter(id => typeof id === 'string') : [])])]
+        storage.setItem(`elite-club-v2:${scope}`, JSON.stringify({ cart: nextCart, favorites: nextFavorites }))
+        sessionStorage.removeItem('elite-club-v2:guest')
+      }
+      setCart(nextCart)
+      setFavorites(nextFavorites)
+    } catch { setCart([]); setFavorites([]); setToast('No pudimos recuperar los datos guardados.') }
+    previousScope.current = scope
+    setStorageScope(scope)
+  }, [scope])
+  useEffect(() => { if (ready) { try { const storage = scope === 'guest' ? sessionStorage : localStorage; storage.setItem(`elite-club-v2:${scope}`, JSON.stringify({ cart, favorites })) } catch { setToast('El navegador no permite guardar los cambios. Se conservarán durante esta visita.') } } }, [cart, favorites, ready, scope])
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 4000); return () => clearTimeout(timer) }, [toast])
   const categories = ['Todo', 'Remeras', 'Hoodies', 'Pantalones', 'Accesorios']
   const matchesCategory = p => category === 'Todo' || (category === 'Remeras' ? /REMERA|TEE|POLO|MUSCULOSA|BODY/.test(p.type) : category === 'Hoodies' ? /HOODIE|BUZO|SWEATER|CAMPERA/.test(p.type) : category === 'Pantalones' ? /PANTAL|SHORT|BERMUDA|JEAN|JOGGER/.test(p.type) : !/REMERA|TEE|POLO|MUSCULOSA|BODY|HOODIE|BUZO|SWEATER|CAMPERA|PANTAL|SHORT|BERMUDA|JEAN|JOGGER/.test(p.type))
   const groups = groupProducts(products)
 
-  const filtered = groups.filter(p => (!department || (/\b(wom[ae]n(?:s|'s)?|mujer(?:es)?)\b/i.test(p.name) ? 'Mujer' : 'Hombre') === department) && matchesCategory(p) && (!brand || p.brand === brand) && (!onlyFavorites || p.sourceIds.some(id => favorites.includes(id))) && p.variants.some(v => (!size || v.size === size) && (!color || v.color.split(' / ').includes(color)) && `${p.name} ${v.name} ${v.color} ${p.brand} ${p.type}`.toLowerCase().includes(query.toLowerCase()))).sort((a,b) => sort === 'az' ? a.name.localeCompare(b.name) : sort === 'za' ? b.name.localeCompare(a.name) : 0)
-  const items = resolveCart(cart, groups)
+  const groupPrice = group => Math.min(...group.variants.map(variant => Number(variant.price)).filter(price => Number.isFinite(price) && price > 0))
+  const visibleFavorites = ready ? favorites : []
+  const filtered = groups.filter(p => (!department || (/\b(wom[ae]n(?:s|'s)?|mujer(?:es)?)\b/i.test(p.name) ? 'Mujer' : 'Hombre') === department) && matchesCategory(p) && (!brand || p.brand === brand) && (!onlyFavorites || p.sourceIds.some(id => visibleFavorites.includes(id))) && p.variants.some(v => (!size || v.size === size) && (!color || v.color.split(' / ').includes(color)) && `${p.name} ${v.name} ${v.color} ${p.brand} ${p.type}`.toLowerCase().includes(query.toLowerCase()))).sort((a,b) => {
+    if (sort === 'az') return a.name.localeCompare(b.name)
+    if (sort === 'za') return b.name.localeCompare(a.name)
+    if (sort.startsWith('price-')) {
+      const first = groupPrice(a), second = groupPrice(b)
+      if (!Number.isFinite(first)) return Number.isFinite(second) ? 1 : 0
+      if (!Number.isFinite(second)) return -1
+      return sort === 'price-asc' ? first - second : second - first
+    }
+    return 0
+  })
+  const items = resolveCart(ready ? cart : [], groups)
   const count = items.reduce((sum, item) => sum + item.quantity, 0)
   const cartRows = rows => resolveCart(rows, groups).map(({ id, quantity }) => ({ id, quantity }))
-  function add(product) { setCart(current => addItem(cartRows(current), product)); setToast(`${product.name}${product.size === '-' ? '' : ` · Talle ${product.size}`} agregado al carrito`) }
-  function favorite(group) { setFavorites(current => group.sourceIds.some(id => current.includes(id)) ? current.filter(id => !group.sourceIds.includes(id)) : [...current, group.id]) }
+  function add(product) { if (!ready) return; setCart(current => addItem(cartRows(current), product)); setToast(`${product.name}${product.size === '-' ? '' : ` · Talle ${product.size}`} agregado al carrito`) }
+  function favorite(group) { if (!ready) return; setFavorites(current => group.sourceIds.some(id => current.includes(id)) ? current.filter(id => !group.sourceIds.includes(id)) : [...current, group.id]) }
   function openProduct(group, initial) { setModal({ type: 'detail', product: group, initial }) }
   function reset() { setQuery(''); setCategory('Todo'); setBrand(''); setSize(''); setColor(''); setSort('featured'); setOnlyFavorites(false); setLimit(12) }
   function navigateCatalog(nextDepartment = '', nextCategory = 'Todo') {
@@ -199,17 +244,17 @@ function Store({ initialProducts, initialFilters = {} }) {
     <div className="catalog-toolbar"><form className="search" onSubmit={event => event.preventDefault()}><label className="sr-only" htmlFor="search">{t("Buscar productos")}</label><Icon name="search" /><input id="search" name="q" placeholder={t("Buscá tu próxima pieza")} value={query} onChange={e => { setQuery(e.target.value); setLimit(12) }} />{department && <input type="hidden" name="seccion" value={department} />}<button type="submit" aria-label={t("Enviar búsqueda")}><Icon name="arrow" /></button></form><CurrencySwitcher />
     <CatalogFilters brands={[...new Set(products.map(p => p.brand))].sort()} sizes={[...new Set(products.map(p => p.size))].sort()} colors={[...new Set(groups.flatMap(p => p.variants.flatMap(v => v.color.split(' / '))))].sort()} categories={categories} values={{ brand, size, color, category, sort }} onChange={(field, value) => { ({ brand: setBrand, size: setSize, color: setColor, category: setCategory, sort: setSort })[field](value); setLimit(12) }} onClear={() => { setBrand(''); setSize(''); setColor(''); setCategory('Todo'); setSort('featured'); setLimit(12) }} /></div>
     <div className="results"><span>{t(`${filtered.length} productos${onlyFavorites ? ' · Tus favoritos' : ''}`)}</span>{(query || department || category !== 'Todo' || brand || size || color || onlyFavorites) && <button onClick={reset}>{t("Limpiar filtros ×")}</button>}</div>
-    <div className="product-grid">{filtered.slice(0, limit).map(p => <ProductCard key={p.id + ':' + color + ':' + size + ':' + p.variants.map(v => v.name + v.size).join('|')} group={p} products={products} initialSize={size} initialColor={color} isFavorite={p.sourceIds.some(id => favorites.includes(id))} favorite={() => favorite(p)} onOpen={openProduct} onAdd={add} />)}</div>
+    <div className="product-grid">{filtered.slice(0, limit).map(p => <ProductCard key={p.id + ':' + color + ':' + size + ':' + p.variants.map(v => v.name + v.size).join('|')} group={p} products={products} initialSize={size} initialColor={color} isFavorite={p.sourceIds.some(id => visibleFavorites.includes(id))} favorite={() => favorite(p)} onOpen={openProduct} onAdd={add} />)}</div>
     {!filtered.length && <div className="empty"><Icon name="search" width="36" height="36" /><h3>{t("No encontramos esa pieza.")}</h3><p>{t("Probá con otra marca, talle o palabra.")}</p><button className="button dark" onClick={reset}>{t("Ver toda la colección")}</button></div>}{filtered.length > limit && <div className="load-more"><button className="button outline" onClick={() => setLimit(limit + 12)}><span>{t("Descubrir más piezas")}</span><Icon name="plus" /></button><p>{t(`Viendo ${Math.min(limit, filtered.length)} de ${filtered.length} productos`)}</p></div>}</section>
     </main>
     <footer><div className="footer-identity"><a href="/" className="logo-link" aria-label={t("Volver al inicio")}><Logo /></a><span>© {new Date().getFullYear()} Elite Club</span></div></footer>
     {toast && !modal && <div className="toast" role="status"><Icon name="check" />{t(toast)}</div>}
     {modal?.type === 'search' && <Modal title={t("Buscar productos")} onClose={() => setModal(null)}><form className="site-search search" action="/catalogo"><label className="sr-only" htmlFor="header-search">{t("Buscar productos")}</label><input id="header-search" name="q" placeholder={t("Buscá tu próxima pieza")} defaultValue={query} autoFocus /><button type="submit" aria-label={t("Enviar búsqueda")}><Icon name="arrow" /></button></form></Modal>}
     {modal?.type === 'detail' && <Modal title={t("Detalle del producto")} onClose={() => setModal(null)}><ProductDetail group={modal.product} products={products} initial={modal.initial} cart={items} onAdd={add} count={count} onCart={() => setModal({ type: 'cart' })} /></Modal>}
-    {modal?.type === 'auth' && <Modal title={t('Mi cuenta')} onClose={() => setModal(null)}><AuthForm /></Modal>}
+    {modal?.type === 'auth' && <Modal title={t('Mi cuenta')} guardChanges formResetKey={profile} onClose={() => setModal(null)}><AuthForm /></Modal>}
     {modal?.type === 'cart' && <Modal title={t(`Tu carrito (${count})`)} drawer onClose={() => setModal(null)}>{items.length ? <><div className="cart-items">{items.map(({ product: p, quantity }) => <article className="cart-item" key={p.id}><Photo product={p} /><div><p className="eyebrow">{p.brand}</p><h3>{p.name}</h3><div className="cart-variant"><span className="cart-swatch" role="img" aria-label={p.color} style={{ background: swatchFor(p) }} />{p.size !== '-' && <span>{t(`Talle ${p.size}`)}</span>}</div><div className="quantity"><button disabled={quantity === 1} aria-label={t(`Restar ${p.name}`)} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity - 1))}>−</button><span>{quantity}</span><button disabled={quantity === 99} aria-label={t(`Sumar ${p.name}`)} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity + 1))}>+</button></div></div><button className="icon-button" aria-label={t(`Eliminar ${p.name} del carrito`)} onClick={() => setCart(c => removeItem(cartRows(c), p.id))}><Icon name="trash" /></button></article>)}</div><div className="cart-summary"><div><span>{t("Total de prendas")}</span><strong>{count}</strong></div><button className="button dark" onClick={() => setModal({ type: 'checkout' })}>{t("Continuar")} <Icon name="arrow" /></button><button className="text-button" onClick={() => setModal({ type: 'empty-cart' })}>{t("Vaciar carrito")}</button></div></> : <div className="empty"><Icon name="bag" width="44" height="44" /><h3>{t("Carrito vacío")}</h3><p>{t("Todavía no agregaste productos.")}</p><button className="button dark" onClick={() => { setModal(null); document.getElementById('catalogo').scrollIntoView() }}>{t("Explorar colección")}</button></div>}</Modal>}
     {modal?.type === 'empty-cart' && <Modal title={t("¿Vaciar tu carrito?")} onClose={() => setModal({ type: 'cart' })}><p>{t("Se quitarán todas las prendas que elegiste.")}</p><div className="modal-actions"><button className="button outline" onClick={() => setModal({ type: 'cart' })}>{t("Cancelar")}</button><button className="button dark" onClick={() => { setCart([]); setModal({ type: 'cart' }) }}>{t("Vaciar carrito")}</button></div></Modal>}
-    {modal?.type === 'checkout' && <Modal title="Finalizar compra" onClose={() => { if (!checkoutBusy) setModal(null) }}><CheckoutFlow items={items} onBusy={setCheckoutBusy} onBack={() => setModal({ type: 'cart' })} /></Modal>}
+    {modal?.type === 'checkout' && <Modal title="Finalizar compra" guardChanges onClose={() => { if (!checkoutBusy) setModal(null) }}><CheckoutFlow items={items} onBusy={setCheckoutBusy} onBack={() => setModal({ type: 'cart' })} /></Modal>}
     {modal?.type === 'payment-result' && <Modal title={t('Estado del pedido')} onClose={() => setModal(null)}>
       <p>Pedido {modal.id}</p>
       {paymentResult?.loading ? <p role="status">{t('Verificando pago…')}</p> : paymentResult?.error ? <p role="alert">{t(paymentResult.error)}</p> :

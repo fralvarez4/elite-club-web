@@ -74,6 +74,7 @@ export default function ProfileForm() {
   if (profileError || !profile) return <div><p className="auth-message" role="alert">{t(profileError || 'No pudimos cargar tu perfil. Volvé a intentar o contactá a la tienda.')}</p><button type="button" className="text-button" onClick={reloadProfile}>{t('Reintentar')}</button></div>
   const incomplete = missingProfileFields(profile).length > 0
   return <>
+    <p className="account-role">{t(profile.role === 'admin' ? 'Cuenta de administración' : 'Cuenta de cliente')}</p>
     <dl className="account-details">
       <div><dt>{t('ID de cliente')}</dt><dd>{customerId(profile.id)}</dd></div>
       {profile.first_name && <div><dt>{t('Nombre')}</dt><dd>{profile.first_name}</dd></div>}
@@ -83,7 +84,8 @@ export default function ProfileForm() {
       {profile.street && <div><dt>{t('Dirección')}</dt><dd>{profile.street} {profile.street_number}, {profile.city}, {profile.province}</dd></div>}
       <div><dt>{t('Métodos de acceso')}</dt><dd>{accessMethods(user)}</dd></div>
     </dl>
-    {profile.role === 'admin' && <a className="button outline" href="/admin">{t('Administración')}</a>}
+    <a className="button outline" href="/pedidos">{t('Mis pedidos')}</a>
+    {profile.role === 'admin' && <><a className="button outline" href="/admin">{t('Administración de productos')}</a><a className="button outline" href="/admin/pedidos">{t('Pedidos de la tienda')}</a></>}
     {!incomplete && !editing && <button type="button" className="button outline" onClick={() => setEditing(true)}>{t('Editar perfil')}</button>}
     {(incomplete || editing) && <ProfileEditor key={`${profile.id}:${profile.created_at}`} profile={profile} onSaved={() => { setEditing(false); reloadProfile() }} />}
   </>

@@ -14,7 +14,7 @@ test('real APIs return safe 429 with Retry-After and never call MP when quota is
   const api = context.request
   const data = { name: 'Prueba', size: 'M', brand: 'Elite', type: 'Remera', image: '/products/test.webp', sort_order: 5, price: 10 }
   const product = await (await api.post('/api/admin/products', { headers: { origin }, data })).json()
-  const orderBody = { items: [{ product_id: product.id, quantity: 1 }], delivery: { method: 'pickup', first_name: 'Ana', last_name: 'Perez', phone: '123' } }
+  const orderBody = { items: [{ product_id: product.id, quantity: 1 }], delivery: { method: 'pickup', first_name: 'Ana', last_name: 'Perez', phone: '1123456789' } }
   const { order } = await (await api.post('/api/v1/orders', { headers: { origin }, data: orderBody })).json()
   await request.post(`${backend}/fixtures/rate-limit`, { data: { enabled: true } })
   for (const [method, path, body] of [

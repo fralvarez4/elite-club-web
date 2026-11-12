@@ -2,9 +2,23 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { getSupabaseBrowserClient, restoreBrowserSession } from './supabaseBrowser'
-import { readProfile } from './profiles'
+import { readProfile, updateProfile } from './profiles'
 
 const AuthContext = createContext(null)
+
+function missingSignupFields(profile, metadata) {
+  const fields = {}
+  for (const key of ['first_name', 'last_name']) {
+    const value = metadata?.[key]
+    if (!profile[key] && typeof value === 'string' && value.trim().length >= 2 && value.trim().length <= 100) fields[key] = value.trim()
+  }
+  const birthDate = metadata?.birth_date
+  if (!profile.birth_date && typeof birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    const parsed = new Date(`${birthDate}T00:00:00Z`)
+    if (Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === birthDate && birthDate >= '0001-01-01' && birthDate <= new Date().toISOString().slice(0, 10)) fields.birth_date = birthDate
+  }
+  return fields
+}
 
 export function authErrorMessage(error) {
   const code = error?.code || error?.details?.code
@@ -31,19 +45,26 @@ export function AuthProvider({ children }) {
   const [profileVersion, setProfileVersion] = useState(0)
   const reloadProfile = useCallback(() => setProfileVersion(version => version + 1), [])
   const userId = session?.user?.id
+  const signupMetadata = session?.user?.user_metadata
 
   useEffect(() => {
     if (!userId) return
     let active = true
     setProfileState({ userId, data: null, error: '', loading: true })
-    readProfile(getSupabaseBrowserClient(), userId).then(data => {
+    const client = getSupabaseBrowserClient()
+    readProfile(client, userId).then(async data => {
+      const missing = missingSignupFields(data, signupMetadata)
+      if (Object.keys(missing).length) {
+        try { data = await updateProfile(client, userId, missing) }
+        catch { /* El usuario todavía puede completar los campos faltantes manualmente. */ }
+      }
       if (active) setProfileState({ userId, data, error: '', loading: false })
     }).catch(() => {
       console.error('[Elite Club/profiles] No se pudo consultar el perfil.', { category: 'profile_lookup_failed' })
       if (active) setProfileState({ userId, data: null, error: 'No pudimos cargar tu perfil. Volvé a intentar o contactá a la tienda.', loading: false })
     })
     return () => { active = false }
-  }, [userId, profileVersion])
+  }, [userId, profileVersion, signupMetadata])
   const clearError = useCallback(() => setError(''), [])
   const acknowledgeEmailReturn = useCallback(() => setReturningFromEmail(false), [])
 

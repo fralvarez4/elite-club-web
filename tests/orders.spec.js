@@ -10,7 +10,7 @@ test('order API payload only accepts product IDs and bounded integer quantities'
     expect(() => validateOrderItems(payload)).toThrow()
   }
   const request = (body, headers = {}) => new Request('http://localhost:3000/api/v1/orders', { method: 'POST', headers: { Origin: 'http://localhost:3000', 'Content-Type': 'application/json', ...headers }, body })
-  const complete = { ...valid, delivery: { method: 'pickup', first_name: 'Ana', last_name: 'Perez', phone: '123' } }
+  const complete = { ...valid, delivery: { method: 'pickup', first_name: 'Ana', last_name: 'Perez', phone: '1123456789' } }
   await expect(orderInput(request(JSON.stringify(complete)))).resolves.toEqual(complete)
   await expect(orderInput(request(JSON.stringify(valid)))).rejects.toMatchObject({ status: 400 })
   for (const injected of [{ total: 0 }, { subtotal: 0 }, { shipping_cost: 0 }, { pickup_address: 'Falsa' }, { status: 'approved' }]) {
@@ -23,8 +23,9 @@ test('order API payload only accepts product IDs and bounded integer quantities'
 })
 
 test('pagination and UUID are bounded; authentication uses verified Auth user', async () => {
-  expect(orderPagination('http://local.test/')).toEqual({ limit: 20, offset: 0 })
-  for (const query of ['limit=0', 'limit=101', 'offset=-1', 'offset=10001', 'limit=1&limit=2', 'user_id=other']) expect(() => orderPagination(`http://local.test/?${query}`)).toThrow()
+  expect(orderPagination('http://local.test/')).toEqual({ limit: 20, offset: 0, scope: 'mine' })
+  expect(orderPagination('http://local.test/?scope=all')).toEqual({ limit: 20, offset: 0, scope: 'all' })
+  for (const query of ['limit=0', 'limit=101', 'offset=-1', 'offset=10001', 'limit=1&limit=2', 'user_id=other', 'scope=other', 'scope=all&scope=mine']) expect(() => orderPagination(`http://local.test/?${query}`)).toThrow()
   expect(() => validateOrderId('not-a-uuid')).toThrow()
   expect(() => validateOrderId('11111111-1111-4111-8111-111111111111')).not.toThrow()
   await expect(requireOrderUser({ auth: { getUser: async () => ({ data: { user: null } }) } })).rejects.toMatchObject({ status: 401 })

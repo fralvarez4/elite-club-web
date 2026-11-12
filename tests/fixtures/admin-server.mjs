@@ -143,7 +143,7 @@ const server = createServer(async (req, res) => {
     if (url.searchParams.has('id')) {
       const order = visible.find(order => `eq.${order.id}` === url.searchParams.get('id'))
       if (!order) return send(null)
-      if (url.searchParams.get('select')?.includes('products(name)')) return send({ ...order, order_items: order.order_items.map(item => ({ ...item, products: { name: products.find(product => product.id === item.product_id)?.name } })) })
+      if (url.searchParams.get('select')?.includes('products(')) return send({ ...order, order_items: order.order_items.map(item => ({ ...item, products: products.find(product => product.id === item.product_id) || null })) })
       return send(order)
     }
     visible.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))

@@ -250,11 +250,11 @@ test('signup validates required names, birth date and matching passwords before 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('login persists across reload and routes; logout preserves cart and favorites', async ({ page, context }) => {
+test('login persists across reload and routes; logout isolates the signed-in cart', async ({ page, context }) => {
   const state = await mockAuth(context)
   const localCart = { cart: [{ id: 'elite-2', quantity: 2 }], favorites: ['elite-2'] }
   await context.addInitScript(value => {
-    if (!localStorage.getItem('elite-club-v1')) localStorage.setItem('elite-club-v1', JSON.stringify(value))
+    if (!localStorage.getItem('elite-club-v2:12345678-1234-4234-8234-123456789012')) localStorage.setItem('elite-club-v2:12345678-1234-4234-8234-123456789012', JSON.stringify(value))
   }, localCart)
   await page.goto('/')
   await login(page)
@@ -262,14 +262,54 @@ test('login persists across reload and routes; logout preserves cart and favorit
   await expect(page.locator('.account-button')).toHaveAccessibleName('Mi cuenta')
   await page.goto('/catalogo?seccion=Hombre')
   await expect(page.locator('.account-button')).toHaveAccessibleName('Mi cuenta')
+  await expect(page.getByRole('button', { name: 'Carrito 2', exact: true })).toBeVisible()
   await page.locator('.account-button').click()
   await page.getByRole('dialog').getByRole('button', { name: 'Cerrar sesión' }).click()
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('Cerraste sesión')
   expect(state.requests.some(request => request.path.endsWith('/logout') && request.search.get('scope') === 'local')).toBe(true)
   await page.reload()
   await expect(page.locator('.account-button')).toHaveAccessibleName('Iniciar sesión')
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v1')))).toEqual(localCart)
+  await expect(page.getByRole('button', { name: 'Carrito 0', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v2:12345678-1234-4234-8234-123456789012')))).toEqual(localCart)
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(password)
+})
+
+test('guest cart follows the shopper into their account and disappears on sign-out', async ({ page, context }) => {
+  await mockAuth(context)
+  await page.goto('/catalogo')
+  await page.getByRole('button', { name: 'Agregar al carrito', exact: true }).first().click()
+  await expect(page.getByRole('button', { name: 'Carrito 1', exact: true })).toBeVisible()
+  const dialog = await login(page)
+  await expect(page.getByRole('button', { name: 'Carrito 1', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v2:12345678-1234-4234-8234-123456789012')).cart)).toHaveLength(1)
+  expect(await page.evaluate(() => sessionStorage.getItem('elite-club-v2:guest'))).toBeNull()
+  await dialog.getByRole('button', { name: 'Cerrar sesión' }).click()
+  await expect(page.getByRole('button', { name: 'Carrito 0', exact: true })).toBeVisible()
+})
+
+test('birth date from signup metadata fills only an empty profile field', async ({ page, context }) => {
+  user.user_metadata = { birth_date: '2005-01-24' }
+  try {
+    const state = await mockAuth(context)
+    state.profile.birth_date = null
+    await page.goto('/')
+    const dialog = await login(page)
+    await expect(dialog.getByText('24/01/2005')).toBeVisible()
+    expect(state.profileRequests.filter(request => request.method === 'PATCH').map(request => request.body)).toEqual([{ birth_date: '2005-01-24' }])
+    await expect(dialog.getByLabel('Fecha de nacimiento', { exact: true })).toHaveCount(0)
+  } finally { user.user_metadata = {} }
+})
+
+test('account modal warns before discarding typed information', async ({ page }) => {
+  await page.goto('/')
+  const dialog = await openLogin(page)
+  await dialog.getByLabel('Email', { exact: true }).fill('prueba@example.com')
+  page.once('dialog', confirmation => confirmation.dismiss())
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  page.once('dialog', confirmation => confirmation.accept())
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
 })
 
 test('email return restores session, opens account and removes tokens from URL', async ({ page, context }) => {

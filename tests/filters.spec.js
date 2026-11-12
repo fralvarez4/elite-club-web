@@ -40,3 +40,17 @@ test('footer and load-more text share center alignment on mobile and desktop', a
     await page.screenshot({ path: `test-results/filters-${width}.png`, fullPage: true })
   }
 })
+
+test('catalog sorts by price and keeps navigation visible while scrolling', async ({ page }) => {
+  await page.goto('/catalogo')
+  await page.locator('.filter-panel>summary').click()
+  await page.getByRole('combobox', { name: 'Ordenar productos' }).selectOption('price-asc')
+  const ascending = await page.locator('.product-card .product-price').allTextContents()
+  const number = text => Number(text.match(/\d[\d.]*,\d{2}/)?.[0].replaceAll('.', '').replace(',', '.'))
+  expect(ascending.map(number)).toEqual([...ascending.map(number)].sort((a, b) => a - b))
+  await page.getByRole('combobox', { name: 'Ordenar productos' }).selectOption('price-desc')
+  const descending = await page.locator('.product-card .product-price').allTextContents()
+  expect(descending.map(number)).toEqual([...descending.map(number)].sort((a, b) => b - a))
+  await page.evaluate(() => scrollTo(0, 700))
+  await expect.poll(async () => page.locator('.header').evaluate(element => Math.round(element.getBoundingClientRect().top))).toBe(0)
+})

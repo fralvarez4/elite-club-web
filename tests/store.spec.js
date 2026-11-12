@@ -17,9 +17,9 @@ test('cart CRUD, persistence and checkout authentication', async ({ page }) => {
   await page.getByRole('button', { name: 'Carrito 1', exact: true }).click()
   await dialog.getByRole('button', { name: 'Continuar', exact: true }).click()
   await expect(dialog.getByRole('button', { name: 'Iniciar sesi\u00f3n', exact: true })).toBeVisible()
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v1')).cart)).toHaveLength(1)
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('elite-club-v2:guest')).cart)).toHaveLength(1)
 })
-test('catalog ignores legacy edits while preserving favorites and the cart', async ({ page }) => {
+test('catalog discards unscoped legacy cart and ignores legacy product edits', async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('elite-club-v1')) localStorage.setItem('elite-club-v1', JSON.stringify({
       products: [{ id: 'fake', name: 'Producto modificado', brand: 'OTRA', size: 'M', type: 'REMERA', image: '/placeholder.svg' }],
@@ -27,17 +27,16 @@ test('catalog ignores legacy edits while preserving favorites and the cart', asy
     }))
   })
   await page.goto('/catalogo')
+  await expect(page.locator('.nav-trigger').first()).toBeEnabled()
   await expect(page.getByRole('button', { name: /Gestionar catálogo|Nuevo producto|Editar|Eliminar producto/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Ver Nocta Cap', exact: true })).toBeVisible()
   await expect(page.getByText('Producto modificado')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Carrito 2', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Ver favoritos', exact: true }).click()
-  await expect(page.locator('.product-card')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Carrito 0', exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('elite-club-v1'))).toBeNull()
+  await page.getByRole('button', { name: 'Agregar al carrito', exact: true }).first().click()
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Carrito 2', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Ver favoritos', exact: true }).click()
-  await expect(page.locator('.product-card')).toHaveCount(1)
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v1')).products)).toBeUndefined()
+  await expect(page.getByRole('button', { name: 'Carrito 1', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('elite-club-v2:guest')).products)).toBeUndefined()
 })
 test('mobile layout and product images', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })

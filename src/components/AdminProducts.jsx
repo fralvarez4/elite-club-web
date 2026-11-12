@@ -54,7 +54,7 @@ export default function AdminProducts() {
     } catch (cause) { setError(cause.message) } finally { setBusy(false) }
   }
   return <main className="admin-panel">
-    <header><a href="/">← Volver a Elite Club</a><h1>Administración</h1><p>Productos · {products.length} registros</p></header>
+    <header><a href="/">← Volver a Elite Club</a><h1>Administración</h1><nav className="admin-nav" aria-label="Secciones de administración"><a aria-current="page" href="/admin">Productos</a><a href="/admin/pedidos">Pedidos</a></nav><p>Productos · {products.length} registros</p></header>
     {error && <p role="alert" className="auth-message">{error} <button onClick={() => setVersion(value => value + 1)} disabled={busy}>Reintentar</button></p>}
     {message && <p role="status">{message}</p>}
     <button className="button dark" disabled={busy} onClick={() => edit(null)}>Agregar producto</button>

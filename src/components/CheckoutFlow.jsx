@@ -31,6 +31,8 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
   const [uncertain, setUncertain] = useState(false)
   const lock = useRef(false)
   const [draft, setDraft] = useState({})
+  const [values, setValues] = useState({})
+  const [fieldErrors, setFieldErrors] = useState({})
   useEffect(() => {
     let active = true
     jsonRequest('/api/v1/delivery-options').then(data => {
@@ -46,9 +48,16 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
 
   function review(event) {
     event.preventDefault()
-    const parsed = deliverySchema.safeParse({ ...Object.fromEntries(new FormData(event.currentTarget)), method })
-    if (!parsed.success) { setError('Completá correctamente los datos de entrega.'); return }
-    setDraft(parsed.data); setError(''); setDelivery(parsed.data)
+    const fields = [...contact, ...(method === 'shipping' ? address : [])].map(([name]) => name)
+    const parsed = deliverySchema.safeParse(Object.fromEntries([['method', method], ...fields.map(name => [name, values[name] ?? profile?.[name] ?? ''])]))
+    if (!parsed.success) {
+      const errors = Object.fromEntries(parsed.error.issues.filter(issue => issue.path[0]).map(issue => [issue.path[0], issue.message]))
+      setFieldErrors(errors)
+      setError('Revisá los campos señalados antes de continuar.')
+      requestAnimationFrame(() => document.getElementById(`checkout-${Object.keys(errors)[0]}`)?.focus())
+      return
+    }
+    setFieldErrors({}); setDraft(parsed.data); setError(''); setDelivery(parsed.data)
   }
   async function pay() {
     if (lock.current || !ready || uncertain) return
@@ -86,14 +95,14 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
     <p className="eyebrow">Carrito → <strong>{delivery ? 'Revisión' : 'Datos de entrega'}</strong> → Mercado Pago</p>
     {error && <p className="auth-message" role="alert">{error}</p>}
     {!options ? <><p>Cargando opciones de entrega…</p>{error && <button className="text-button" onClick={() => setLoad(value => value + 1)}>Reintentar</button>}</> : !delivery ?
-      <form className="product-form" onSubmit={review}>
+      <form className="product-form" onSubmit={review} noValidate>
         <fieldset className="checkout-methods"><legend>Método de entrega</legend>
           {['shipping', 'pickup'].map(value => {
             const available = options.find(o => o.method === value)
             return <label key={value}><input type="radio" name="method" value={value} checked={method === value} disabled={!available} onChange={() => setMethod(value)} />{value === 'shipping' ? 'Envío' : 'Retiro'}{Number(available?.cost) === 0 ? ' gratis' : available ? ` · ${money(available.cost)}` : ' no disponible'}{value === 'shipping' ? ' a domicilio' : ''}</label>
           })}
         </fieldset>
-        {[...contact, ...(method === 'shipping' ? address : [])].map(([name, label, max]) => <label key={name}>{label}<input name={name} type={name === 'phone' ? 'tel' : 'text'} maxLength={max} required={!['apartment', 'instructions'].includes(name)} defaultValue={draft[name] ?? profile?.[name] ?? ''} /></label>)}
+        {[...contact, ...(method === 'shipping' ? address : [])].map(([name, label, max]) => <label key={name} htmlFor={`checkout-${name}`}>{label}<input id={`checkout-${name}`} name={name} aria-label={label} type={name === 'phone' ? 'tel' : 'text'} autoComplete={{ first_name: 'given-name', last_name: 'family-name', phone: 'tel', street: 'address-line1', apartment: 'address-line2', postal_code: 'postal-code', city: 'address-level2', province: 'address-level1' }[name] || 'off'} inputMode={name === 'phone' ? 'tel' : name === 'postal_code' ? 'text' : undefined} maxLength={max} required={!['apartment', 'instructions'].includes(name)} aria-invalid={Boolean(fieldErrors[name])} aria-describedby={fieldErrors[name] ? `checkout-${name}-error` : undefined} value={values[name] ?? profile?.[name] ?? ''} onChange={event => { setValues(current => ({ ...current, [name]: event.target.value })); setFieldErrors(current => ({ ...current, [name]: undefined })) }} />{fieldErrors[name] && <span className="field-error" id={`checkout-${name}-error`}>{fieldErrors[name]}</span>}</label>)}
         {method === 'pickup' && option && <Pickup option={option} />}
         {!validPrices && <p role="alert">No pudimos obtener los precios actuales. Actualizá el catálogo antes de continuar.</p>}
         <button className="button dark" disabled={!ready}>Revisar pedido</button>
@@ -109,7 +118,7 @@ export default function CheckoutFlow({ items, onBack, onBusy }) {
         {order && <p className="auth-message">{Number(order.fx_rate) > 0 ? `Cotización MEP aplicada: ${new Intl.NumberFormat('es-AR').format(Number(order.fx_rate))} ARS/USD. ` : ''}El total de este pedido queda fijo.</p>}
         {order && <p className="auth-message">Pedido pendiente: {order.id}. Si el pago falla, podés reintentar con este mismo pedido.</p>}
         <button className="button dark" disabled={busy || !ready || uncertain} onClick={pay}>{busy ? 'Procesando…' : order ? 'Pagar con Mercado Pago' : 'Cotizar pedido en ARS'}</button>
-        {!order && <button className="text-button" disabled={busy || uncertain} onClick={() => { setDelivery(null); setError('') }}>Editar entrega</button>}
+        {!order && <button className="text-button" disabled={busy || uncertain} onClick={() => { setValues(draft); setDelivery(null); setError('') }}>Editar entrega</button>}
       </>}
   </div>
 }

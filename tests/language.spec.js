@@ -27,7 +27,7 @@ test('language switch translates filters and cart, preserves state and persists'
   await page.getByRole('button', { name: 'Cart 2', exact: true }).click()
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(dialog.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('elite-club-v1')).cart[0].quantity)).toBe(2)
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('elite-club-v2:guest')).cart[0].quantity)).toBe(2)
 })
 
 test('white photos and carousel, Arial titles and centred load-more in both languages', async ({ page }) => {

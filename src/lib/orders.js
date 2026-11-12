@@ -7,7 +7,7 @@ export class OrderError extends Error {
 }
 
 export const orderColumns = 'id,user_id,status,subtotal,shipping_cost,total,pricing_version,fx_rate,fx_source,fx_date,fx_fetched_at,created_at,order_delivery(*)'
-export const orderDetailColumns = `${orderColumns},order_items(id,order_id,product_id,quantity,unit_price,unit_price_usd)`
+export const orderDetailColumns = `${orderColumns},order_items(id,order_id,product_id,quantity,unit_price,unit_price_usd,products(name,brand,size))`
 
 export async function requireOrderUser(client) {
   const { data, error } = await client.auth.getUser()
@@ -74,14 +74,16 @@ export async function orderInput(request) {
 
 export function orderPagination(url) {
   const params = new URL(url).searchParams
-  if ([...params.keys()].some(key => !['limit', 'offset'].includes(key))) throw new OrderError(400, 'Parámetros no permitidos.')
+  if ([...params.keys()].some(key => !['limit', 'offset', 'scope'].includes(key))) throw new OrderError(400, 'Parámetros no permitidos.')
   const read = (key, fallback, min, max) => {
     const raw = params.get(key) ?? String(fallback)
     const value = Number(raw)
     if (params.getAll(key).length > 1 || !/^\d+$/.test(raw) || !Number.isSafeInteger(value) || value < min || value > max) throw new OrderError(400, `Parámetro ${key} inválido.`)
     return value
   }
-  return { limit: read('limit', 20, 1, 100), offset: read('offset', 0, 0, 10000) }
+  const scope = params.get('scope') ?? 'mine'
+  if (params.getAll('scope').length > 1 || !['mine', 'all'].includes(scope)) throw new OrderError(400, 'Parámetro scope inválido.')
+  return { limit: read('limit', 20, 1, 100), offset: read('offset', 0, 0, 10000), scope }
 }
 
 export function validateOrderId(id) {

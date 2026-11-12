@@ -28,10 +28,11 @@ export async function GET(request) {
   try {
     const client = await getSupabaseServerClient()
     const { user, isAdmin } = await orderReader(client)
-    const { limit, offset } = orderPagination(request.url)
+    const { limit, offset, scope } = orderPagination(request.url)
+    if (scope === 'all' && !isAdmin) throw new OrderError(403, 'Forbidden')
     await consumeReadQuota(client, 'orders')
     let query = client.from('orders').select(orderColumns).order('created_at', { ascending: false }).order('id', { ascending: false })
-    if (!isAdmin) query = query.eq('user_id', user.id)
+    if (scope === 'mine') query = query.eq('user_id', user.id)
     const { data, error } = await query.range(offset, offset + limit)
     if (error) throw error
     return ordersResponse({ orders: data.slice(0, limit), limit, offset, has_more: data.length > limit })
