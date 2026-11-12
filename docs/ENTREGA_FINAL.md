@@ -1,6 +1,6 @@
 # Entrega final — Elite Club
 
-Estado al 11/11/2026. Los cambios están en la rama `entrega-preview-2026-11-11`; `main` conserva la versión pública anterior. Este documento distingue pruebas automatizadas de integraciones verificadas en servicios externos.
+Estado al 12/11/2026. El [PR #1](https://github.com/fralvarez4/elite-club-web/pull/1) está integrado en `main` y la web está publicada en [eliteclubstore.vercel.app](https://eliteclubstore.vercel.app/). Este documento distingue pruebas automatizadas, comprobaciones hechas por el dueño en servicios externos y funciones aún no probadas con dinero real.
 
 ## Plan priorizado
 
@@ -16,29 +16,29 @@ La URL obligatoria `https://indexitba.estebanpiazza.com.ar/grilla.html` no respo
 
 | Criterio | Estado verificable | Falta para Excelente |
 | --- | --- | --- |
-| E1 Repo, CI/CD y preview PR | Rama publicada; [CI verde](https://github.com/fralvarez4/elite-club-web/actions/runs/43119562572) y [preview Vercel exitoso](https://vercel.com/franco-fc75/elite-club-web/3yfdhTtaiibxiPa5AaQuJC2nmR3s) | Abrir PR hacia `main` y verificar el checklist en él |
+| E1 Repo, CI/CD y preview PR | [PR #1 integrado](https://github.com/fralvarez4/elite-club-web/pull/1), [CI verde en `main`](https://github.com/fralvarez4/elite-club-web/actions/runs/43141080351) y [preview Vercel exitoso](https://vercel.com/franco-fc75/elite-club-web/38KTYYibaVRC8HL9Pt7Ycagagk55) | Preview sin variables propias de Supabase y Turnstile: sólo permitió comprobar interfaz y carrito |
 | E2 Landing responsive | UI probada en escritorio y móvil | Validación manual final de accesibilidad |
-| E3 Formularios dinámicos | Auth, perfil, entrega y admin con validaciones y fetch probados | Recorrido real con Supabase desplegado |
-| E4 Catálogo y API | Catálogo y APIs probados; plantilla checklist PR preparada | Usar checklist en PR y verificar despliegue |
-| E5 Supabase y admin | CRUD/RLS probado localmente; migraciones `009`–`012` aplicadas por el dueño | Verificar admin real tras desplegar |
-| E6 Checkout y webhook | Integración local simulada y tests de idempotencia | Configurar Mercado Pago, desplegar y probar un pago de prueba real |
-| Transversales | Código, UI y documentación revisados localmente | Demo pública y defensa técnica tras despliegue |
+| E3 Formularios dinámicos | Auth, perfil, entrega y admin con validaciones y fetch probados; acceso y pedido reales comprobados en Production | Recorrido manual adicional de edición de perfil si se exige evidencia visual |
+| E4 Catálogo y API | Catálogo/API probados; checklist en PR; productos y precios reales visibles en Production | Ningún bloqueo conocido |
+| E5 Supabase y admin | CRUD/RLS probado localmente; migraciones aplicadas; cuenta admin creada y producto temporal creado, editado, visto en catálogo y eliminado en Production | Ningún bloqueo conocido |
+| E6 Checkout y webhook | Pedido USD→ARS, Checkout Pro y pago de prueba aprobados; simulador oficial de Mercado Pago respondió 200; el dueño confirmó `payment_events` y pedido `approved` y mensaje de confirmación en la web | No se han probado cobros reales ni entrega automática de notificaciones de producción |
+| Transversales | Código, UI, CI y despliegue público revisados; esta guía documenta la evidencia | Presentar demo pública y defensa técnica |
 
-El código incluye catálogo, filtros, variantes, carrito, favoritos, autenticación Supabase, perfiles, administración protegida, pedidos con importes calculados por RPC y checkout de Mercado Pago. Su funcionamiento real depende de migraciones y credenciales externas aún no verificadas.
+El código incluye catálogo, filtros, variantes, carrito, favoritos, autenticación Supabase, perfiles, administración protegida, pedidos con importes calculados por RPC y checkout de Mercado Pago. Los recorridos principales se verificaron en la web publicada con credenciales de prueba; la aceptación de pagos reales permanece fuera del alcance de esta prueba.
 
 La siguiente matriz reúne la evidencia técnica por área, sin asignar una nota a pruebas aún no ejecutadas en producción:
 
 | Área | Evidencia local | Pendiente externo |
 | --- | --- | --- |
-| Catálogo, búsqueda, filtros y variantes | Pruebas de UI y lectura de Supabase simulada | Confirmar seed y precios reales en Supabase |
+| Catálogo, búsqueda, filtros y variantes | Pruebas de UI y lectura de Supabase simulada | 74 precios USD y catálogo real comprobados por el dueño |
 | Carrito y favoritos | CRUD, persistencia y vista móvil en Playwright | Ninguno para uso local |
-| Auth y perfil | Flujos de Email/OAuth simulados, RLS y edición de contacto en PGlite; `009` aplicada | Probar acceso real tras desplegar |
-| Administración | Validación, roles, CRUD y revocación en pruebas HTTP simuladas | Confirmar rol administrador y `008` en Supabase real |
-| Pedidos y entrega | RPC, importes, snapshot, propiedad y límites probados localmente | Confirmar `005`–`008`, tarifas y precios reales |
-| Pagos | Firma, consulta al proveedor simulado, vendedor, importe, preferencia única e idempotencia probados localmente; `010`–`012` aplicadas | Configurar Webhooks y probar un pago de prueba real |
-| Moneda | Catálogo USD, visualización ARS indicativa, pedido ARS con cotización MEP guardada y pago ARS; `012` aplicada | Verificar conectividad a DolarAPI y probar en Supabase real |
+| Auth y perfil | Flujos de Email/OAuth simulados, RLS y edición de contacto en PGlite; `009` aplicada | Acceso real confirmado en Production; edición de perfil aún sin evidencia manual final |
+| Administración | Validación, roles, CRUD y revocación en pruebas HTTP simuladas | Rol admin y CRUD completo comprobados en Production con producto temporal eliminado |
+| Pedidos y entrega | RPC, importes, snapshot, propiedad y límites probados localmente | Pedido real de prueba creado con total ARS fijo; tarifas de retiro/envío en cero según el dueño |
+| Pagos | Firma, consulta al proveedor simulado, vendedor, importe, preferencia única e idempotencia probados localmente; `010`–`012` aplicadas | Pago de prueba aprobado; webhook simulado respondió 200 y actualizó el pedido según consulta SQL del dueño |
+| Moneda | Catálogo USD, visualización ARS indicativa, pedido ARS con cotización MEP guardada y pago ARS; `012` aplicada | Precios USD y total ARS real comprobados en Production |
 | Accesibilidad y responsive | Controles con etiquetas, diálogos, teclado y revisión 1440/390 px | Revisión manual adicional con lector de pantalla si la rúbrica la exige |
-| Despliegue | Build de producción pasa | Configurar variables y dominio HTTPS; probar servicio desplegado |
+| Despliegue | Build y CI de `main` pasan | Vercel Production activo en HTTPS; catálogo, auth, admin y pago de prueba comprobados |
 
 ## Cambios realizados
 
@@ -60,6 +60,9 @@ Node/npm no estaban en `PATH` de la sesión. Se ejecutaron usando `C:\Program Fi
 - `npm test -- --workers=3 --reporter=line`: 85/85 pasaron, incluidas pruebas de la conversión USD→ARS, cotización y migración `012`.
 - `npx playwright test --config playwright.admin.config.js`: 10/10 pasaron con servidor simulado de Supabase, DolarAPI y Mercado Pago, incluida la revisión del total ARS antes del pago.
 - Los nuevos tests del webhook usan respuestas simuladas del proveedor y PostgreSQL local en PGlite. No son una prueba de una transferencia real.
+- [GitHub Actions en `main`](https://github.com/fralvarez4/elite-club-web/actions/runs/43141080351): lint, build, rate limit, 85 pruebas principales y pruebas HTTP de administración pasaron tras integrar el PR.
+- En Production, el dueño comprobó inicio de sesión, precios USD, cotización y pedido ARS, creación de Preference, pago con comprador y tarjeta de prueba, respuesta 200 del simulador de Webhooks de Mercado Pago, pedido y evento `approved` con importes iguales en Supabase, y mensaje “Pago confirmado por Mercado Pago” en la web.
+- Se creó una cuenta admin dedicada; desde `/admin` se creó un producto temporal, se editó su precio, se comprobó el nuevo precio en el catálogo público y se eliminó el producto. El dueño confirmó que desapareció del panel.
 - Se abrió la app en Microsoft Edge a 1440×900 y 390×844. El catálogo, encabezado, selector de moneda y tarjetas se renderizaron; 12 tarjetas visibles y ningún desborde horizontal (`scrollWidth` igual al viewport en ambos tamaños). Capturas locales de revisión en `test-results/visual-desktop.png` y `test-results/visual-mobile.png` (directorio ignorado por Git).
 
 ## Decisiones técnicas
@@ -68,12 +71,13 @@ El dueño confirmó que los 74 valores de `products.price` provienen de una list
 
 Se usa [DolarAPI, Dólar Bolsa](https://ar.dolarapi.com/docs/argentina/operations/get-dolar-bolsa) para la tasa MEP de venta. La verificación del webhook sigue el [manifiesto HMAC y consulta de pagos descritos por Mercado Pago](https://www.mercadopago.com.ar/developers/en/docs/checkout-pro-preferences/payment-notifications). Las notificaciones no son fuente de importes: el servidor obtiene el pago autenticándose ante Mercado Pago y la RPC comprueba su importe contra el pedido.
 
-## Configuración externa y bloqueos
+## Configuración externa y límites de verificación
 
-- Codex no se conectó directamente a Supabase remoto ni al panel de Mercado Pago. El dueño ejecutó manualmente las migraciones `009`, `010`, `011` y `012` en Supabase Production desde SQL Editor; informó `Success` en cada una. Aún no se habilitaron cobros reales.
-- Antes de las migraciones, el dueño verificó 74 productos con precios base USD y ningún precio nulo/no positivo. Había cinco pedidos de prueba `pending`, ninguno aprobado, con importes 40–255 interpretados antes como ARS. Las migraciones `009`–`012` fueron informadas como aplicadas correctamente, pero aún no se hizo un pedido de prueba real con la nueva versión. El código nuevo rechaza el Checkout de pedidos `legacy_ars`.
+- Codex no se conectó directamente a Supabase remoto ni al panel de Mercado Pago. El dueño ejecutó manualmente las migraciones `009`, `010`, `011` y `012` en Supabase Production desde SQL Editor; informó `Success` en cada una. Sólo se usaron cuentas y tarjeta de prueba de Mercado Pago; no se verificaron cobros reales.
+- Antes de las migraciones, el dueño verificó 74 productos con precios base USD y ningún precio nulo/no positivo. Había cinco pedidos de prueba `pending`, ninguno aprobado, con importes 40–255 interpretados antes como ARS. El código nuevo rechaza el Checkout de pedidos `legacy_ars`. Después se creó un pedido nuevo con total ARS 63.132 y se realizó un pago de prueba aprobado. El dueño confirmó que el pedido y su evento de pago quedaron `approved` tras la notificación simulada.
 - El dueño comprobó que el Site URL y las dos redirect URLs del dominio `eliteclubstore.vercel.app` están configurados en Supabase; Email y Google figuran habilitados. Los métodos de envío y retiro están activos con costo cero; el dueño indicó que sus datos concretos no son relevantes para la evaluación.
-- El sitio público está en Vercel y el dueño ya tiene acceso a sus variables. `SUPABASE_SERVICE_ROLE_KEY` fue guardada en Production. `APP_URL` existe, pero su valor no puede verse sin verificación; se asume pendiente de comprobar. Tampoco tiene acceso a la aplicación de Mercado Pago. El workflow de la rama de preview pasó lint, build, rate limit, 85 pruebas principales y pruebas HTTP de administración. El preview se desplegó correctamente, pero no tiene las variables de Supabase y Turnstile en el entorno Preview: muestra el catálogo de respaldo sin precios y no permite probar el acceso real. El dueño no puede modificar esas variables por falta de verificación de Vercel; esta limitación no demuestra un fallo del entorno Production.
+- El sitio público está en Vercel; el dueño confirmó la presencia de `APP_URL`, `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET` y `MERCADOPAGO_COLLECTOR_ID` en Production, además de `SUPABASE_SERVICE_ROLE_KEY`. No pudo revelar los valores por la verificación de Vercel, pero el flujo de prueba recorrió el dominio público y el webhook aceptó la simulación. El preview carece de variables de Supabase y Turnstile en el entorno Preview: muestra el catálogo de respaldo sin precios y no permite probar acceso real. Esta limitación no se observó en Production.
+- En Checkout Pro vía Preferences API, Mercado Pago indica que los pagos hechos con credenciales de prueba no envían notificaciones automáticas. La recepción del webhook se probó con el simulador oficial usando el ID del pago aprobado. El primer intento con el ID de ejemplo `123456` devolvió 502; el intento con el ID real devolvió 200 y produjo el estado `approved` según el dueño. Esto no prueba la entrega automática de notificaciones en modo de cobro real.
 
 ### Checklist único de Vercel y Mercado Pago
 
@@ -84,15 +88,15 @@ En **Vercel → proyecto de `eliteclubstore.vercel.app` → Settings → Environ
 | `APP_URL` | Existe, valor no verificable por el dueño | `https://eliteclubstore.vercel.app` sin ruta, query ni fragmento; confirmar o corregir con miembro verificado de Vercel |
 | `NEXT_PUBLIC_SUPABASE_URL` | Existe | URL del proyecto **Elite Club Web** en Supabase → Connect/Settings → API Keys; comparar con el proyecto donde se aplicaron `009`–`012` |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Existe | Publishable key `sb_publishable_...` del mismo proyecto Supabase |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Existe | Site key pública de Turnstile para el dominio publicado; comprobar que el widget funciona en login/registro |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Existe y el dueño comprobó el widget en Production | Site key pública de Turnstile para el dominio publicado |
 | `SUPABASE_SERVICE_ROLE_KEY` | Guardada en Production | Secret key `sb_secret_...` de ese proyecto Supabase; sólo servidor |
-| `MERCADOPAGO_ACCESS_TOKEN` | Existe, modo desconocido | Token de la aplicación vendedora de Checkout Pro **Preferences**; responsable de Mercado Pago debe confirmar si es de prueba o producción y que corresponde a esa aplicación |
-| `MERCADOPAGO_WEBHOOK_SECRET` | Falta | Firma secreta de **Configuración de Webhooks** de la misma aplicación y del entorno elegido; sólo servidor |
-| `MERCADOPAGO_COLLECTOR_ID` | Falta | ID numérico de la cuenta vendedora asociada al token; responsable de Mercado Pago debe obtenerlo y cargarlo, sin inventarlo |
+| `MERCADOPAGO_ACCESS_TOKEN` | Existe; permitió crear una Preference y consultar el pago de prueba | Token de la aplicación vendedora de Checkout Pro **Preferences** |
+| `MERCADOPAGO_WEBHOOK_SECRET` | Presente en Production; simulación firmada aceptada con HTTP 200 | Firma secreta de **Configuración de Webhooks** de la misma aplicación y del entorno elegido; sólo servidor |
+| `MERCADOPAGO_COLLECTOR_ID` | Presente en Production; pago de prueba aceptado por el webhook | ID numérico de la cuenta vendedora asociada al token |
 
 En **Mercado Pago Developers → Tus integraciones**, el responsable debe abrir la aplicación vinculada al token existente y confirmar **Checkout Pro + Preferences**. En **Configuración de Webhooks**, seleccionar el entorno de prueba y el evento **Payments**, configurar `https://eliteclubstore.vercel.app/api/v1/payments/webhook`, guardar y copiar la firma secreta directamente a Vercel. Configurar el ID de vendedor de la misma cuenta. No combinar token, firma y vendedor de aplicaciones o entornos distintos. El Checkout del código falla cerrado mientras falten estas variables.
 
-Secuencia de publicación desde la rama de preview: (1) abrir PR con checklist y CI verde, (2) completar/confirmar variables de Production y webhook de prueba de Mercado Pago, (3) autorizar merge a `main` y esperar el despliegue Vercel, (4) probar catálogo, login, admin y pedido USD→ARS en Production, (5) pagar sólo con comprador y credenciales de prueba, verificar `payment_events` y `orders.status = approved` una vez, (6) preparar la demo. No habilitar cobros reales hasta terminar las pruebas y recibir autorización.
+Secuencia completada: PR con CI verde, variables de Production, merge a `main`, despliegue Vercel, catálogo y acceso reales, administración CRUD, pedido USD→ARS, pago con comprador de prueba y simulación de webhook con pedido `approved`. Para la entrega académica sólo queda preparar la demo y presentar enlaces y evidencia. Antes de aceptar cobros reales, revisar credenciales productivas y validar entrega automática de notificaciones con una transacción real autorizada.
 
 ### Recuperación de una Preference incierta
 
@@ -103,7 +107,7 @@ Si Checkout devuelve 409 porque la Preference permanece en `creating`, identific
 1. Mostrar el catálogo público en escritorio y móvil: búsqueda, filtros, variantes, favoritos y carrito.
 2. Iniciar sesión, completar/editar perfil y revisar cómo se autocompleta la entrega sin bloquear cambios para el pedido actual.
 3. Mostrar el precio base USD y la conversión ARS indicativa. Explicar que el servidor obtiene MEP venta y que la RPC guarda una cotización y los importes ARS fijos en el pedido.
-4. Crear un pedido de prueba nuevo. Confirmar el total ARS antes de Checkout Pro. Usar sólo credenciales y comprador de prueba.
-5. Verificar el webhook y el estado `approved` desde la base. Repetir la notificación para demostrar idempotencia. No afirmar que el retorno del navegador confirma el pago.
-6. Mostrar el panel admin, permisos RLS, un cambio de precio USD y su reflejo en catálogo. Explicar que los pedidos conservan sus precios históricos.
-7. Abrir el PR con checklist, CI verde y preview Vercel. CI y el despliegue de preview ya se verificaron; el preview no puede probar datos reales hasta recibir variables de Preview.
+4. Mostrar el pedido de prueba ya creado, su total ARS fijado antes de Checkout Pro y la compra de prueba aprobada. Evitar crear otro pedido para la demo si no hace falta.
+5. Mostrar la simulación oficial del webhook (HTTP 200), `payment_events` y `orders.status = approved` en Supabase y el mensaje de confirmación en la web. Repetir la notificación sólo si se necesita demostrar idempotencia y con el mismo ID real; no afirmar que el retorno del navegador por sí solo confirma el pago.
+6. Mostrar el panel admin, permisos RLS y evidencia del producto temporal creado, editado, visto en catálogo y eliminado. Explicar que los pedidos conservan sus precios históricos.
+7. Abrir el [PR #1](https://github.com/fralvarez4/elite-club-web/pull/1), [CI verde en `main`](https://github.com/fralvarez4/elite-club-web/actions/runs/43141080351) y el despliegue público. El preview por rama no tuvo variables propias de Supabase/Turnstile; la prueba funcional se hizo en Production.

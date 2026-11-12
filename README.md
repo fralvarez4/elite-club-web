@@ -1,10 +1,10 @@
 # Elite Club
 
-Marketplace académico con React y Next.js App Router. Los 74 precios cargados en Supabase provienen de una lista en USD. La migración `012_usd_base_ars_orders.sql` y el código actualizado convierten cada pedido a ARS con cotización MEP verificada antes de habilitar el pago. Consultá [docs/ENTREGA_FINAL.md](docs/ENTREGA_FINAL.md) para el estado de entrega, las migraciones y los pasos externos pendientes.
+Marketplace académico con React y Next.js App Router. Los 74 precios cargados en Supabase provienen de una lista en USD. La migración `012_usd_base_ars_orders.sql` y el código publicado convierten cada pedido a ARS con cotización MEP verificada antes de habilitar el pago. Consultá [docs/ENTREGA_FINAL.md](docs/ENTREGA_FINAL.md) para el estado de entrega, la evidencia y los límites de las pruebas.
 
 ## Estado de entrega
 
-El dueño aplicó manualmente las migraciones `009`–`012` en Supabase Production. El código nuevo todavía no está publicado. La [guía de entrega](docs/ENTREGA_FINAL.md#checklist-único-de-vercel-y-mercado-pago) contiene un único checklist para Vercel y Mercado Pago, el orden de publicación, pruebas pendientes y un guion de demo. El checkout permanece bloqueado si falta la configuración segura de pagos. No se debe considerar verificado un cobro real hasta probar el webhook con credenciales de prueba.
+El dueño aplicó manualmente las migraciones `009`–`012` en Supabase Production. El [PR #1](https://github.com/fralvarez4/elite-club-web/pull/1) se integró en `main` y la aplicación está publicada en [eliteclubstore.vercel.app](https://eliteclubstore.vercel.app/). CI pasó en `main`; se comprobaron catálogo con precios USD, acceso, pedido con total ARS, Checkout Pro, pago con comprador y tarjeta de prueba, notificación simulada de Mercado Pago con respuesta HTTP 200, pedido `approved` y mensaje de confirmación en la web. También se creó, editó, mostró en el catálogo y eliminó un producto temporal desde el panel administrador. Mercado Pago no envía notificaciones automáticas para pagos con credenciales de prueba en Checkout Pro vía Preferences API; la recepción se verificó con su simulador oficial. La [guía de entrega](docs/ENTREGA_FINAL.md) contiene la evidencia y el guion de demo. La aceptación de pagos reales no se ha probado.
 
 ## Ejecutar
 
@@ -486,7 +486,7 @@ el usuario no puede modificar profiles.role ni datos privados ajenos.
 
 401 indica ausencia de autenticación válida, 403 falta de permiso y 404 recurso
 inexistente/no visible. 429 corresponde a exceso de solicitudes; el limitador
-persistente propio está preparado en 008, pendiente de revisión y activación manual.
+persistente propio está implementado en 008, aplicado antes de las migraciones 009–012.
 Un límite solo en Next.js no protege
 una RPC que también pueda invocarse directamente: debe existir control adicional
 en esa función/base, sin permitir que authenticated reinicie sus contadores.
@@ -584,15 +584,17 @@ Esa configuración usa una Site Key ficticia solo en el servidor de pruebas y
 los tests interceptan el script de Cloudflare y Auth: no resuelven CAPTCHA real,
 no crean cuentas, no envían emails y no habilitan nada remotamente. Verifican envío
 de token, rechazo, expiración, errores, reintentos, checklist y Google sin CAPTCHA.
-La prueba real de widget + proveedor queda pendiente de la configuración manual.
+El dueño comprobó el widget y el acceso real en el dominio de Production después del despliegue. Las pruebas automatizadas siguen usando dobles de Cloudflare y Auth.
 
 Referencias: https://supabase.com/docs/guides/auth/auth-captcha y
 https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/.
 
 ### Rate limiting persistente — migración 008 ya presente en Supabase
 
-**NO se ejecutó `008_rate_limiting.sql` en Supabase.** La secuencia activa es
-`001 → 002 → 003 → 004 → 005 → 006 → 007_products_price → 008_rate_limiting`.
+`008_rate_limiting.sql` está aplicada en Supabase Production: los flujos de pedido,
+checkout y administración protegidos por sus RPC funcionaron después del despliegue.
+La secuencia activa es
+`001 → 002 → 003 → 004 → 005 → 006 → 007_products_price → 008_rate_limiting → 009 → 010 → 011 → 012`.
 El número 007 se utiliza ahora para formalizar `products.price`, no para USD/ARS.
 008 requiere la base con 001–007. Las APIs de esta versión
 requieren las nuevas RPC de 008.
@@ -608,11 +610,9 @@ La conversión visual USD/ARS y el cobro ARS desde precios base USD se implement
 con `012`. Si se implementa AMBA, se necesitará una migración posterior a `012`,
 reconciliada con el rate limiting y la confirmación de pagos.
 No se debe copiar el borrador directamente a migrations ni ejecutarlo tal como está.
-Hasta aplicar manualmente la migración aprobada, las lecturas privadas, checkout y
-CRUD administrativo pueden responder error de configuración/503: fallan cerrados,
-sin intentar escritura directa ni saltarse cuotas. El catálogo público no cambia.
-La creación de pedidos conservará el comportamiento de 006 hasta aplicar 008;
-por eso no debe considerarse protegida remotamente antes de la migración.
+En una instalación nueva que omita 008, las lecturas privadas, checkout y CRUD
+administrativo pueden responder error de configuración/503: fallan cerrados,
+sin intentar escritura directa ni saltarse cuotas. Aplicar las migraciones en orden.
 
 El SQL completo está en `supabase/migrations/008_rate_limiting.sql`. No usa secretos,
 `service_role`, Redis ni otro servicio. Auth conserva los límites oficiales de
