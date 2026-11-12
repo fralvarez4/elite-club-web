@@ -19,11 +19,11 @@ test('five featured garments cycle in both directions and open their matching de
   await expect(page.getByRole('dialog').getByRole('heading', { name, exact: true })).toBeVisible()
 })
 
-test('reference storefront keeps original garment colors and a loaded PNG logo', async ({ page }) => {
+test('warm storefront keeps original garment colors and a loaded PNG logo', async ({ page }) => {
   await page.goto('/catalogo')
   await expect(page.locator('.header .brand-logo')).toBeVisible()
   await expect(page.locator('.header .brand-logo')).toHaveAttribute('src', '/elite-club-logo.png')
-  expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)')
+  expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 247, 246)')
   expect(await page.locator('.photo-button img').first().evaluate(el => getComputedStyle(el).mixBlendMode)).toBe('normal')
   await expect(page.getByRole('button', { name: 'Productos', exact: true })).toHaveCount(0)
   await expect(page.locator('.nav-trigger')).toHaveText(['Hombre', 'Mujer'])
@@ -31,8 +31,8 @@ test('reference storefront keeps original garment colors and a loaded PNG logo',
   await page.locator('.product-card').last().scrollIntoViewIfNeeded()
   await expect.poll(() => page.locator('.product-card img').evaluateAll(imgs => imgs.every(img => img.complete && img.naturalWidth > 0))).toBe(true)
   await page.evaluate(() => window.scrollTo(0, 0))
-  await page.screenshot({ path: 'test-results/dark-mobile.png', fullPage: true })
+  await page.screenshot({ path: 'test-results/warm-mobile.png', fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.setViewportSize({ width: 1440, height: 1000 })
-  await page.screenshot({ path: 'test-results/dark-desktop.png', fullPage: true })
+  await page.screenshot({ path: 'test-results/warm-desktop.png', fullPage: true })
 })

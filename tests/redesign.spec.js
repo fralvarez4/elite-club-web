@@ -17,12 +17,12 @@ test('adding from product detail confirms in place and persists', async ({ page 
 })
 
 for (const width of [390, 768, 1440]) {
-  test(`three columns and unclipped brands at ${width}px`, async ({ page }) => {
+  test(`responsive columns and unclipped brands at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/catalogo')
     await expect(page.locator('.product-card')).toHaveCount(12)
     const columns = await page.locator('.product-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)
-    expect(columns).toBe(3)
+    expect(columns).toBe(width < 700 ? 2 : width <= 1000 ? 3 : 4)
     const corteiz = page.locator('.brand-strip').getByRole('link', { name: 'CORTEIZ', exact: true })
     await corteiz.scrollIntoViewIfNeeded()
     const box = await corteiz.boundingBox()

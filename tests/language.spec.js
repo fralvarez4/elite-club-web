@@ -30,7 +30,7 @@ test('language switch translates filters and cart, preserves state and persists'
   expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('elite-club-v2:guest')).cart[0].quantity)).toBe(2)
 })
 
-test('white photos and carousel, Arial titles and centred load-more in both languages', async ({ page }) => {
+test('warm photos and carousel, Arial titles and centred load-more in both languages', async ({ page }) => {
   await page.goto('/')
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 })
@@ -39,9 +39,9 @@ test('white photos and carousel, Arial titles and centred load-more in both lang
       const text = await page.locator('.load-more .button>span').boundingBox()
       const count = await page.locator('.load-more p').boundingBox()
       expect(Math.abs(text.x + text.width / 2 - count.x - count.width / 2)).toBeLessThan(1)
-      expect(await page.locator('.product-visual').first().evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)')
+      expect(await page.locator('.product-visual').first().evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(241, 236, 235)')
       expect(await page.locator('.product-title').first().evaluate(el => getComputedStyle(el).fontFamily)).toMatch(/^Arial/)
-      expect(await page.locator('.campaign').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)')
+      expect(await page.locator('.campaign').evaluate(el => getComputedStyle(el).backgroundImage)).toContain('linear-gradient')
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     }
     await page.locator('.product-card').last().scrollIntoViewIfNeeded()
