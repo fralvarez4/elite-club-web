@@ -60,7 +60,10 @@ function OrdersContent({ admin = false }) {
         body: JSON.stringify({ order_id: id }), cache: 'no-store',
       })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'No pudimos continuar el pago. Actualizá el pedido y volvé a intentar.')
+      if (!response.ok) {
+        if (response.status === 409) refresh()
+        throw new Error(data.error || 'No pudimos continuar el pago. Actualizá el pedido y volvé a intentar.')
+      }
       const target = new URL(data.init_point)
       if (target.protocol !== 'https:' || !/(^|\.)mercadopago\.com(\.ar)?$/.test(target.hostname)) throw new Error('El enlace de pago no es válido. Contactá a la tienda.')
       window.location.assign(target.href)

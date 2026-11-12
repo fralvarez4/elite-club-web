@@ -17,6 +17,7 @@ export async function POST(request) {
     const result = await createCheckout(request, client, {
       appUrl: process.env.APP_URL,
       token: process.env.MERCADOPAGO_ACCESS_TOKEN,
+      collectorId: process.env.MERCADOPAGO_COLLECTOR_ID,
       preferenceClient,
     })
     return Response.json(result, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })

@@ -15,6 +15,7 @@ let adminRole = 'admin'
 let products = []
 let orders = []
 let preferences = []
+let payments = []
 let checkoutPreferences = new Map()
 let exchangeRate = null
 let limited = false
@@ -30,13 +31,17 @@ const server = createServer(async (req, res) => {
   let text = ''
   for await (const chunk of req) text += chunk
   const body = text ? JSON.parse(text) : {}
-  if (url.pathname === '/fixtures/reset') { adminRole = 'admin'; products = []; orders = []; preferences = []; checkoutPreferences = new Map(); exchangeRate = null; limited = false; return send({}) }
+  if (url.pathname === '/fixtures/reset') { adminRole = 'admin'; products = []; orders = []; preferences = []; payments = []; checkoutPreferences = new Map(); exchangeRate = null; limited = false; return send({}) }
   if (url.pathname === '/fixtures/rate-limit') { limited = body.enabled === true; return send({}) }
   if (url.pathname === '/fixtures/mercadopago') {
     preferences.push(body)
     return send({ id: `pref-${preferences.length}`, init_point: `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref-${preferences.length}` }, 201)
   }
   if (url.pathname === '/fixtures/preferences') return send(preferences)
+  if (url.pathname === '/fixtures/mercadopago-payments') return send({ paging: { total: payments.length }, results: payments.map(({ id }) => ({ id })) })
+  if (url.pathname.startsWith('/fixtures/mercadopago-payment/')) return send(payments.find(payment => String(payment.id) === url.pathname.split('/').pop()) || {}, payments.some(payment => String(payment.id) === url.pathname.split('/').pop()) ? 200 : 404)
+  if (url.pathname === '/fixtures/payment-add') { payments.push(body); return send({}) }
+  if (url.pathname === '/fixtures/preference-age') { const pref = checkoutPreferences.get(body.order_id); if (pref) pref.created_at = new Date(Date.now() - 10 * 60 * 1000).toISOString(); return send({}) }
   if (url.pathname === '/fixtures/order-change') {
     Object.assign(orders.find(order => order.id === body.id), body.changes)
     return send({})
@@ -73,7 +78,7 @@ const server = createServer(async (req, res) => {
       if (existing?.preference_id) return send({ state: 'ready', preference_id: existing.preference_id, init_point: existing.init_point })
       if (existing) return send({ state: 'creating' })
       const claim_token = crypto.randomUUID()
-      checkoutPreferences.set(body.p_order_id, { claim_token })
+      checkoutPreferences.set(body.p_order_id, { claim_token, created_at: new Date().toISOString() })
       return send({ state: 'claimed', claim_token })
     }
     if (!existing || existing.claim_token !== body.p_claim_token) return send({ code: 'PT409' }, 409)
@@ -88,6 +93,13 @@ const server = createServer(async (req, res) => {
       return send(true)
     }
   }
+  if (url.pathname === '/rest/v1/rpc/elite_record_payment') {
+    if (req.headers.authorization !== 'Bearer fixture-service-key') return send({ code: '42501' }, 403)
+    const order = orders.find(item => item.id === body.p_order_id)
+    if (!order || order.total !== body.p_amount || body.p_currency !== 'ARS' || body.p_collector_id !== '1234') return send({ code: 'PT409' }, 409)
+    if (body.p_status === 'approved') order.status = 'approved'
+    return send(order.status)
+  }
   // Contrato HTTP simulado. Las cuotas/privilegios reales se prueban con PGlite.
   if (url.pathname.startsWith('/rest/v1/rpc/')) {
     if (!role) return send({ code: 'PT401' }, 401)
@@ -97,6 +109,11 @@ const server = createServer(async (req, res) => {
     }
   }
   if (url.pathname === '/rest/v1/rpc/elite_consume_read_quota') return send({ allowed: true })
+  if (url.pathname === '/rest/v1/checkout_preferences') {
+    if (req.headers.authorization !== 'Bearer fixture-service-key') return send({ code: '42501' }, 403)
+    const pref = checkoutPreferences.get(url.searchParams.get('order_id')?.replace(/^eq\./, ''))
+    return send(pref ? { created_at: pref.created_at } : null)
+  }
   if (url.pathname === '/rest/v1/rpc/elite_checkout_quota') {
     const order = orders.find(order => order.id === body.p_order_id && order.user_id === users[role].id)
     if (!order) return send({ code: 'PT404' }, 404)

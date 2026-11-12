@@ -8,11 +8,13 @@ const request = (body = { order_id: id }, headers = {}) => new Request('http://l
 const claimToken = '33333333-3333-4333-8333-333333333333'
 const preferenceClient = (state = { state: 'claimed', claim_token: claimToken }) => ({
   calls: [],
+  from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString() } }) }) }) }),
   async rpc(name, args) {
     this.calls.push({ name, args })
     if (name === 'elite_claim_checkout_preference') return { data: state }
     if (name === 'elite_finish_checkout_preference') return { data: { state: 'ready', preference_id: args.p_preference_id, init_point: args.p_init_point } }
     if (name === 'elite_release_checkout_preference') return { data: true }
+    if (name === 'elite_record_payment') return { data: 'approved' }
     throw new Error('Unexpected RPC')
   },
 })
@@ -95,7 +97,7 @@ test('checkout validates before contacting Mercado Pago and never returns raw pr
 test('saved preference is reused; uncertain creation blocks a second provider call', async () => {
   const destination = { preference_id: 'pref-1', init_point: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref-1' }
   let providerCalls = 0
-  const options = { appUrl: 'https://8.8.8.8', token: 'fixture', fetch: async () => { providerCalls++; throw new Error('Network timeout') } }
+  const options = { appUrl: 'https://8.8.8.8', token: 'fixture', collectorId: '1234', fetch: async url => { if (url.includes('/payments/search?')) return Response.json({ paging: { total: 0 }, results: [] }); providerCalls++; throw new Error('Network timeout') } }
   expect(await createCheckout(request(), client(order()), { ...options, preferenceClient: preferenceClient({ state: 'ready', ...destination }) })).toEqual(destination)
   await expect(createCheckout(request(), client(order()), { ...options, preferenceClient: preferenceClient({ state: 'creating' }) })).rejects.toMatchObject({ status: 409 })
   const pending = preferenceClient()
@@ -108,4 +110,19 @@ test('saved preference is reused; uncertain creation blocks a second provider ca
   const rejected = preferenceClient()
   await expect(createCheckout(request(), client(order()), { ...options, preferenceClient: rejected, fetch: async () => Response.json({}, { status: 400 }) })).rejects.toMatchObject({ status: 502 })
   expect(rejected.calls.map(call => call.name)).toEqual(['elite_claim_checkout_preference', 'elite_release_checkout_preference'])
+})
+
+test('a paid preference is reconciled and never reopened; uncertain provider results fail closed', async () => {
+  const destination = { state: 'ready', preference_id: 'pref-1', init_point: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref-1' }
+  const saved = preferenceClient(destination)
+  const payment = { id: 4567, external_reference: id, collector_id: 1234, currency_id: 'ARS', transaction_amount: 0.3, status: 'approved' }
+  const options = { appUrl: 'https://8.8.8.8', token: 'fixture', collectorId: '1234', preferenceClient: saved, fetch: async url =>
+    url.includes('/payments/search?') ? Response.json({ paging: { total: 1 }, results: [{ id: 4567 }] }) : Response.json(payment) }
+  await expect(createCheckout(request(), client(order()), options)).rejects.toMatchObject({ status: 409 })
+  expect(saved.calls.map(call => call.name)).toEqual(['elite_claim_checkout_preference', 'elite_record_payment'])
+  expect(saved.calls[1].args.p_payment_id).toBe('4567')
+  await expect(createCheckout(request(), client(order()), { ...options, fetch: async () => { throw new Error('MP unavailable') } })).rejects.toMatchObject({ status: 503 })
+  await expect(createCheckout(request(), client(order()), { ...options, fetch: async () => Response.json({ paging: { total: 2 }, results: [{ id: 4567 }] }) })).rejects.toMatchObject({ status: 503 })
+  payment.status = 'pending'
+  await expect(createCheckout(request(), client(order()), options)).rejects.toMatchObject({ status: 409 })
 })

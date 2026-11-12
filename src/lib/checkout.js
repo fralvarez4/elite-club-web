@@ -8,6 +8,7 @@ import { protectedRpc, rateLimitResponse } from './rateLimit.js'
 
 const bodySchema = z.object({ order_id: z.string().uuid() }).strict()
 const endpoint = 'https://api.mercadopago.com/checkout/preferences'
+const paymentsEndpoint = 'https://api.mercadopago.com/v1/payments/'
 const columns = 'id,user_id,status,pricing_version,subtotal,shipping_cost,total,order_delivery(method),order_items(id,product_id,quantity,unit_price,products(name))'
 const reserved = new BlockList()
 for (const [address, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4]]) reserved.addSubnet(address, prefix, 'ipv4')
@@ -95,7 +96,51 @@ function checkoutDestination(data) {
   return { preference_id: data.preference_id, init_point: target.href }
 }
 
-export async function createCheckout(request, client, { appUrl, token, preferenceClient, fetch: send = globalThis.fetch, resolve = lookup }) {
+async function verifyPreviousPayments(order, token, collectorId, preferenceClient, send) {
+  const url = new URL(`${paymentsEndpoint}search`)
+  url.searchParams.set('external_reference', order.id)
+  url.searchParams.set('sort', 'date_created')
+  url.searchParams.set('criteria', 'desc')
+  url.searchParams.set('limit', '50')
+  url.searchParams.set('offset', '0')
+  const options = { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10000) }
+  let found
+  try {
+    const response = await send(url.href, options)
+    if (!response.ok) throw new Error('Payment search unavailable')
+    found = await response.json()
+  } catch { throw new CheckoutError(503, 'No pudimos comprobar pagos anteriores en Mercado Pago. No intentes pagar otra vez hasta que la tienda revise el pedido.') }
+  if (!Array.isArray(found?.results) || !Number.isSafeInteger(found?.paging?.total) || found.paging.total !== found.results.length || found.results.length > 50) {
+    throw new CheckoutError(503, 'La consulta de pagos no fue concluyente. Contactá a la tienda antes de reintentar.')
+  }
+  for (const result of found.results) {
+    const id = String(result?.id || '')
+    if (!/^[0-9]{1,30}$/.test(id)) throw new CheckoutError(503, 'Mercado Pago devolvió un pago inválido. Contactá a la tienda.')
+    let payment
+    try {
+      const response = await send(`${paymentsEndpoint}${id}`, options)
+      if (!response.ok) throw new Error('Payment lookup unavailable')
+      payment = await response.json()
+    } catch { throw new CheckoutError(503, 'No pudimos verificar un pago anterior. Contactá a la tienda antes de reintentar.') }
+    let matches = false
+    try { matches = String(payment?.id) === id && payment.external_reference === order.id &&
+      String(payment.collector_id) === collectorId && payment.currency_id === 'ARS' &&
+      cents(payment.transaction_amount) === cents(order.total) } catch { /* Pago inconsistente. */ }
+    if (!matches) throw new CheckoutError(409, 'Hay un pago con datos distintos para este pedido. Contactá a la tienda antes de reintentar.')
+    if (payment.status === 'approved') {
+      try {
+        await protectedRpc(preferenceClient, 'elite_record_payment', {
+          p_order_id: order.id, p_payment_id: id, p_status: 'approved', p_amount: payment.transaction_amount,
+          p_currency: 'ARS', p_collector_id: collectorId,
+        })
+      } catch { throw new CheckoutError(503, 'Encontramos un pago aprobado, pero no pudimos actualizar el pedido. Contactá a la tienda; no pagues de nuevo.') }
+      throw new CheckoutError(409, 'Este pedido ya tiene un pago aprobado en Mercado Pago. Actualizá Mis pedidos; no pagues de nuevo.')
+    }
+    if (!['rejected', 'cancelled'].includes(payment.status)) throw new CheckoutError(409, 'Mercado Pago registra un pago en proceso o que requiere revisión. No pagues de nuevo; consultá a la tienda.')
+  }
+}
+
+export async function createCheckout(request, client, { appUrl, token, collectorId, preferenceClient, fetch: send = globalThis.fetch, resolve = lookup }) {
   const user = await requireOrderUser(client)
   const { order_id } = await checkoutInput(request)
   const { data: order, error } = await client.from('orders').select(columns).eq('id', order_id).eq('user_id', user.id).maybeSingle()
@@ -110,6 +155,11 @@ export async function createCheckout(request, client, { appUrl, token, preferenc
   if (quota.allowed !== true) throw new CheckoutError(503, 'No se pudo verificar la cuota de Checkout.')
   const claim = await protectedRpc(preferenceClient, 'elite_claim_checkout_preference', { p_order_id: order_id, p_user_id: user.id })
   if (claim.state === 'ready') {
+    if (!/^[0-9]{1,30}$/.test(String(collectorId || ''))) throw new CheckoutError(503, 'No se pudo verificar el vendedor de Mercado Pago.')
+    await verifyPreviousPayments(order, token, collectorId, preferenceClient, send)
+    const { data: saved, error: savedError } = await preferenceClient.from('checkout_preferences').select('created_at').eq('order_id', order_id).maybeSingle()
+    if (savedError || !saved?.created_at || !Number.isFinite(Date.parse(saved.created_at))) throw new CheckoutError(503, 'No pudimos comprobar cuándo se inició el pago. Contactá a la tienda antes de reintentar.')
+    if (Date.now() - Date.parse(saved.created_at) < 5 * 60 * 1000) throw new CheckoutError(409, 'El pago anterior puede seguir procesándose. Esperá cinco minutos y actualizá Mis pedidos antes de reintentar.')
     try { return checkoutDestination(claim) } catch { throw new CheckoutError(503, 'La Preference guardada no es válida.') }
   }
   if (claim.state === 'creating') throw new CheckoutError(409, 'La Preference de este pedido está pendiente de verificación. Contactá a la tienda antes de reintentar.')
