@@ -15,6 +15,8 @@ let adminRole = 'admin'
 let products = []
 let orders = []
 let preferences = []
+let checkoutPreferences = new Map()
+let exchangeRate = null
 let limited = false
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost:3101')
@@ -28,7 +30,7 @@ const server = createServer(async (req, res) => {
   let text = ''
   for await (const chunk of req) text += chunk
   const body = text ? JSON.parse(text) : {}
-  if (url.pathname === '/fixtures/reset') { adminRole = 'admin'; products = []; orders = []; preferences = []; limited = false; return send({}) }
+  if (url.pathname === '/fixtures/reset') { adminRole = 'admin'; products = []; orders = []; preferences = []; checkoutPreferences = new Map(); exchangeRate = null; limited = false; return send({}) }
   if (url.pathname === '/fixtures/rate-limit') { limited = body.enabled === true; return send({}) }
   if (url.pathname === '/fixtures/mercadopago') {
     preferences.push(body)
@@ -49,9 +51,43 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/auth/v1/user') return role ? send(users[role]) : send({ message: 'Invalid JWT' }, 401)
   if (url.pathname === '/rest/v1/profiles') {
     if (!role || url.searchParams.get('user_id') !== `eq.${users[role].id}`) return send(null)
-    return send({ id: role === 'admin' ? '2' : '1', user_id: users[role].id, first_name: 'Test', last_name: 'User', birth_date: '2000-01-01', role: role === 'admin' ? adminRole : 'user' })
+    return send({ id: role === 'admin' ? '2' : '1', user_id: users[role].id, first_name: 'Test', last_name: 'User', birth_date: '2000-01-01',
+      phone: role === 'user' ? '1112345678' : null, street: role === 'user' ? 'San Martin' : null,
+      street_number: role === 'user' ? '123' : null, postal_code: role === 'user' ? '1000' : null,
+      city: role === 'user' ? 'CABA' : null, province: role === 'user' ? 'CABA' : null,
+      role: role === 'admin' ? adminRole : 'user' })
   }
   if (url.pathname === '/rest/v1/delivery_options') return send(deliveryOptions)
+  if (url.pathname === '/rest/v1/rpc/elite_store_mep_rate') {
+    if (req.headers.authorization !== 'Bearer fixture-service-key') return send({ code: '42501' }, 403)
+    exchangeRate = { rate: body.p_rate, updated_at: body.p_updated_at, fetched_at: body.p_fetched_at }
+    return send(true)
+  }
+  if (url.pathname.startsWith('/rest/v1/rpc/elite_') && url.pathname.endsWith('_checkout_preference')) {
+    if (req.headers.authorization !== 'Bearer fixture-service-key') return send({ code: '42501' }, 403)
+    const order = orders.find(item => item.id === body.p_order_id && item.user_id === body.p_user_id)
+    if (!order) return send({ code: 'PT404' }, 404)
+    const existing = checkoutPreferences.get(body.p_order_id)
+    if (url.pathname.endsWith('/elite_claim_checkout_preference')) {
+      if (order.status !== 'pending') return send({ code: 'PT409' }, 409)
+      if (existing?.preference_id) return send({ state: 'ready', preference_id: existing.preference_id, init_point: existing.init_point })
+      if (existing) return send({ state: 'creating' })
+      const claim_token = crypto.randomUUID()
+      checkoutPreferences.set(body.p_order_id, { claim_token })
+      return send({ state: 'claimed', claim_token })
+    }
+    if (!existing || existing.claim_token !== body.p_claim_token) return send({ code: 'PT409' }, 409)
+    if (url.pathname.endsWith('/elite_finish_checkout_preference')) {
+      if (existing.preference_id) return send({ code: 'PT409' }, 409)
+      Object.assign(existing, { preference_id: body.p_preference_id, init_point: body.p_init_point })
+      return send({ state: 'ready', preference_id: existing.preference_id, init_point: existing.init_point })
+    }
+    if (url.pathname.endsWith('/elite_release_checkout_preference')) {
+      if (existing.preference_id) return send(false)
+      checkoutPreferences.delete(body.p_order_id)
+      return send(true)
+    }
+  }
   // Contrato HTTP simulado. Las cuotas/privilegios reales se prueban con PGlite.
   if (url.pathname.startsWith('/rest/v1/rpc/')) {
     if (!role) return send({ code: 'PT401' }, 401)
@@ -84,9 +120,16 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/rest/v1/rpc/elite_create_order') {
     if (!role) return send({ code: 'PT401' }, 401)
     const orderId = crypto.randomUUID()
-    const items = body.p_items.map(item => ({ id: crypto.randomUUID(), order_id: orderId, ...item, unit_price: products.find(product => product.id === item.product_id)?.price }))
+    if (!exchangeRate) return send({ code: 'PT503' }, 503)
+    const items = body.p_items.map(item => {
+      const unit_price_usd = products.find(product => product.id === item.product_id)?.price
+      return { id: crypto.randomUUID(), order_id: orderId, ...item, unit_price_usd,
+        unit_price: Math.round(unit_price_usd * exchangeRate.rate * 100) / 100 }
+    })
     if (items.some(item => !item.unit_price)) return send({ code: 'PT400', message: 'Producto inexistente' }, 400)
-    const order = { id: orderId, user_id: users[role].id, status: 'pending', total: items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0), created_at: new Date().toISOString(), order_items: items }
+    const order = { id: orderId, user_id: users[role].id, status: 'pending', total: items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0),
+      pricing_version: 'usd_mep_v1', fx_rate: exchangeRate.rate, fx_source: 'dolarapi_mep_venta', fx_date: exchangeRate.updated_at,
+      fx_fetched_at: exchangeRate.fetched_at, created_at: new Date().toISOString(), order_items: items }
     if (!body.p_delivery) return send({ code: 'PT400' }, 400)
     order.subtotal = order.total; order.shipping_cost = 0
     order.order_delivery = { ...deliveryOptions.find(o => o.method === body.p_delivery.method), ...body.p_delivery, order_id: orderId }

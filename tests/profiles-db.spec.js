@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite'
 
 // PostgreSQL local en memoria. auth.users/auth.uid son fixtures; no accede al proyecto remoto.
 const migration = readFileSync(new URL('../supabase/migrations/002_profiles.sql', import.meta.url), 'utf8')
+const contactMigration = readFileSync(new URL('../supabase/migrations/009_profile_contact.sql', import.meta.url), 'utf8')
 const first = '11111111-1111-4111-8111-111111111111'
 const second = '22222222-2222-4222-8222-222222222222'
 let db
@@ -77,4 +78,14 @@ test('anonymous users have no profile access and role only allows user/admin', a
   for (const statement of ['select * from public.profiles', "update public.profiles set role = 'admin'", 'delete from public.profiles']) {
     await expect(db.exec(statement)).rejects.toMatchObject({ code: '42501' })
   }
+})
+
+test('contact migration permits only the owner to edit saved delivery details', async () => {
+  await db.exec(contactMigration)
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${first}', false)`)
+  const changed = await db.query('update public.profiles set phone = $1, street = $2 where user_id = $3 returning phone, street', ['11 1234 5678', 'San Martín', first])
+  expect(changed.rows).toEqual([{ phone: '11 1234 5678', street: 'San Martín' }])
+  expect((await db.query('update public.profiles set phone = $1 where user_id = $2 returning user_id', ['intruso', second])).rows).toEqual([])
+  await expect(db.exec("update public.profiles set role = 'admin'")).rejects.toMatchObject({ code: '42501' })
+  await expect(db.exec("update public.profiles set phone = '   '")).rejects.toMatchObject({ code: '23514' })
 })

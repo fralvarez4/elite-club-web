@@ -1,5 +1,7 @@
 // Cast de BIGINT a texto para no perder precisión en JavaScript.
-const columns = 'id::text,user_id,first_name,last_name,birth_date,role,created_at'
+const contactFields = ['phone', 'street', 'street_number', 'apartment', 'postal_code', 'city', 'province', 'instructions']
+const editableFields = ['first_name', 'last_name', 'birth_date', ...contactFields]
+const columns = `id::text,user_id,first_name,last_name,birth_date,${contactFields.join(',')},role,created_at`
 
 export async function readProfile(client, userId) {
   const { data, error } = await client.from('profiles').select(columns).eq('user_id', userId).maybeSingle().abortSignal(AbortSignal.timeout(8000))
@@ -10,7 +12,7 @@ export async function readProfile(client, userId) {
 
 export async function updateProfile(client, userId, fields) {
   // Lista cerrada: ningún llamador puede enviar role, id o user_id en el PATCH.
-  const changes = Object.fromEntries(['first_name', 'last_name', 'birth_date']
+  const changes = Object.fromEntries(editableFields
     .filter(key => Object.hasOwn(fields, key)).map(key => [key, fields[key]]))
   const { data, error } = await client.from('profiles').update(changes).eq('user_id', userId).select(columns).single().abortSignal(AbortSignal.timeout(8000))
   if (error) throw error

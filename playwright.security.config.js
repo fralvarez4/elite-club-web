@@ -6,7 +6,7 @@ export default defineConfig({
   testDir: './tests', workers: 2, timeout: 60000,
   use: { baseURL: 'http://localhost:3200', headless: true, channel: 'msedge' },
   webServer: {
-    command: 'npm run dev -- --port 3200',
+    command: 'node node_modules/next/dist/bin/next dev --port 3200',
     url: 'http://localhost:3200', reuseExistingServer: false, timeout: 120000,
     env: { ELITE_TEST_DIST_DIR: '.next/security-tests', NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'fixture-site-key' },
   },

@@ -1,6 +1,10 @@
 # Elite Club
 
-Marketplace académico con React y Next.js App Router. Catálogo de 74 registros del inventario provisto, sin ejecutar macros. Solo se importan nombre, talle, marca, foto y tipo de ropa, más un identificador técnico. No se importan precios, costos, clientes ni ventas.
+Marketplace académico con React y Next.js App Router. Los 74 precios cargados en Supabase provienen de una lista en USD. La migración `012_usd_base_ars_orders.sql` y el código actualizado convierten cada pedido a ARS con cotización MEP verificada antes de habilitar el pago. Consultá [docs/ENTREGA_FINAL.md](docs/ENTREGA_FINAL.md) para el estado de entrega, las migraciones y los pasos externos pendientes.
+
+## Estado de entrega
+
+El dueño aplicó manualmente las migraciones `009`–`012` en Supabase Production. El código nuevo todavía no está publicado. La [guía de entrega](docs/ENTREGA_FINAL.md#checklist-único-de-vercel-y-mercado-pago) contiene un único checklist para Vercel y Mercado Pago, el orden de publicación, pruebas pendientes y un guion de demo. El checkout permanece bloqueado si falta la configuración segura de pagos. No se debe considerar verificado un cobro real hasta probar el webhook con credenciales de prueba.
 
 ## Ejecutar
 
@@ -11,12 +15,13 @@ Producción: `npm run build` y `npm start`.
 
 - Búsqueda, filtros por categoría, marca y talle, orden por nombre y favoritos.
 - Carrito CRUD: agregar, mostrar, actualizar cantidades (1–99), eliminar y vaciar con confirmación.
-- Pedido simulado que limpia el carrito, sin pagos ni precios ficticios.
+- Pedidos con precios base USD convertidos en Supabase a importes ARS, checkout en ARS y confirmación segura por webhook cuando los servicios externos están configurados.
+- Perfil editable y datos de entrega reutilizables; visualización indicativa en ARS con cotización MEP reciente.
 - Catálogo de solo lectura: los visitantes no pueden crear, editar ni eliminar productos.
 - Registro, inicio y cierre de sesión con email y contraseña mediante Supabase Auth.
 - Persistencia local, diseño adaptable y diálogos nativos accesibles.
 
-El catálogo se carga desde Supabase en el servidor, ordenado por `sort_order`. `src/data/products.json` queda como respaldo temporal cuando no hay configuración o falla la consulta. El servidor registra un aviso si falta configuración y un error con diagnóstico si falla Supabase; el fallback nunca es silencioso. Una consulta exitosa sin filas muestra un catálogo vacío y un aviso para revisar el seed/RLS, sin sustituirlo por el JSON. Carrito y favoritos siguen en localStorage y no dependen de la cuenta; las antiguas modificaciones locales del catálogo se ignoran. El SDK de Supabase administra por separado la persistencia de sesión. La compra sigue siendo una demostración. Para reiniciar carrito y favoritos, eliminar la clave elite-club-v1 de localStorage.
+El catálogo se carga desde Supabase en el servidor, ordenado por `sort_order`. `src/data/products.json` queda como respaldo temporal cuando no hay configuración o falla la consulta. El servidor registra un aviso si falta configuración y un error con diagnóstico si falla Supabase; el fallback nunca es silencioso. Una consulta exitosa sin filas muestra un catálogo vacío y un aviso para revisar el seed/RLS, sin sustituirlo por el JSON. Carrito y favoritos siguen en localStorage y no dependen de la cuenta; las antiguas modificaciones locales del catálogo se ignoran. El SDK de Supabase administra por separado la persistencia de sesión. El catálogo de respaldo no tiene precios y no permite finalizar compras. Para reiniciar carrito y favoritos, eliminar la clave elite-club-v1 de localStorage.
 
 ## Arquitectura
 
@@ -35,12 +40,12 @@ El catálogo se carga desde Supabase en el servidor, ordenado por `sort_order`. 
 - public/products: fotos reales extraídas del Excel; algunas filas comparten foto.
 - scripts/import-inventory.ps1: importación reproducible de los campos autorizados.
 
-La clase 05 aporta catálogo, carrito persistente y checkout simulado; la 06, React; la 07, Next.js y App Router. Las actividades de ejemplo ajenas al marketplace no son requisitos de esta aplicación. No se recibió una consigna independiente del TP entre los cuatro archivos indicados.
+La clase 05 aporta catálogo y carrito persistente; la 06, React; la 07, Next.js y App Router. Las actividades de ejemplo ajenas al marketplace no son requisitos de esta aplicación.
 
 ## Verificación
 
 `npm run lint`, `npm run build` y `npm test`.
-Las pruebas usan Microsoft Edge instalado y validan CRUD, recarga, favoritos, compra simulada y vista móvil. Las tipografías usan Google Fonts con respaldo local.
+Las pruebas usan Microsoft Edge instalado y validan CRUD, recarga, favoritos, rutas de compra simuladas y vista móvil. Las tipografías usan Google Fonts con respaldo local.
 Referencia: https://nextjs.org/docs/app/getting-started/installation
 
 Para regenerar imágenes WebP luego de importar: node scripts/optimize-images.mjs.
@@ -335,11 +340,13 @@ PGlite ejecuta el SQL real para probar cálculo decimal, snapshots, rollback, RL
 
 ## Checkout Pro de Mercado Pago
 
-`POST /api/v1/checkout` inicia Checkout únicamente para el propietario autenticado del pedido, incluso cuando quien consulta es admin. No modifica `orders.status`, no implementa webhook y no conecta todavía botones del carrito. No requiere migraciones ni cambios en RLS.
+`POST /api/v1/checkout` inicia Checkout únicamente para el propietario autenticado del pedido, incluso cuando quien consulta es admin. No modifica `orders.status`: sólo el webhook verificado y la RPC de `010_payment_webhooks.sql` pueden aprobarlo. El botón del carrito conduce a este flujo.
+
+Antes de Checkout, `POST /api/v1/orders` obtiene la cotización MEP venta de DolarAPI y la guarda mediante una RPC exclusiva de `service_role`. La migración `012` convierte los precios USD a ARS en PostgreSQL, conserva ambos precios unitarios y la cotización en el pedido, y deja intactos los pedidos históricos. La revisión muestra el total ARS fijado por el servidor y exige una segunda confirmación para ir a Mercado Pago. Si falta cotización reciente, el pedido no se crea.
 
 ### Configuración del servidor
 
-Conservá `MERCADOPAGO_ACCESS_TOKEN` en `.env.local` y configurá `APP_URL` con el origen HTTPS público real de la tienda, por ejemplo el dominio de tu despliegue de Vercel. En producción, configurá ambas variables en el servidor y volvé a desplegar. Ninguna utiliza el prefijo `NEXT_PUBLIC_`; no pegues el token en código, Git ni el navegador.
+Conservá `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADOPAGO_COLLECTOR_ID` y `SUPABASE_SERVICE_ROLE_KEY` en `.env.local` y configurá `APP_URL` con el origen HTTPS público real de la tienda. En producción, configurá estas variables en el servidor y volvé a desplegar. Ninguna utiliza el prefijo `NEXT_PUBLIC_`; no pegues secretos en código, Git ni el navegador. El endpoint rechaza pagos cuando falta la configuración del webhook.
 
 `APP_URL` debe ser un origen HTTPS sin credenciales, ruta, query ni fragmento. Se rechazan localhost, direcciones privadas/reservadas y dominios que no resuelvan a direcciones públicas. Si falta o no es válida, el endpoint responde 503 con un mensaje de configuración y no crea la Preference. Para probar desde desarrollo local necesitás igualmente un dominio HTTPS público para el retorno (un despliegue o túnel propio). [URLs de retorno de Mercado Pago](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro-preferences/configure-back-urls).
 
@@ -372,11 +379,11 @@ APP_URL/?checkout=pending&order_id=UUID
 APP_URL/?checkout=failure&order_id=UUID
 ```
 
-Esos parámetros son únicamente navegación: no acreditan un pago ni actualizan el pedido. El pedido continuará en `pending` hasta implementar la confirmación de pagos en otra etapa. No se agregaron pantallas de resultado.
+Esos parámetros son únicamente navegación: no acreditan un pago ni actualizan el pedido. La tienda consulta el estado autenticado de la orden; sólo muestra el pago como confirmado después de que el webhook verificado registre `approved`.
 
 Otros errores: 400 para body inválido, 401 sin sesión, 403 para Origin incorrecto, 413 para cuerpo excesivo, 415 para contenido no JSON, 502 si Mercado Pago falla o devuelve una respuesta inválida, 503 para configuración/servicios no disponibles. Las respuestas no se cachean.
 
-Cada POST válido puede crear una Preference nueva. No hay persistencia de preferencias, idempotencia ni reintentos automáticos en esta etapa; `external_reference` identifica el pedido pero no impide preferencias duplicadas.
+La migración `011_checkout_preferences.sql` reserva una sola Preference por pedido y reutiliza su URL en los reintentos. Si la respuesta de Mercado Pago es incierta o falla el registro de la Preference, la reserva queda en `creating` y otro POST devuelve 409. Se debe revisar ese pedido con Mercado Pago antes de cualquier recuperación manual; no se libera la reserva automáticamente. Las migraciones `009`, `010` y `011` se aplican en ese orden antes de habilitar Checkout.
 
 ### Prueba manual y automatizada
 
@@ -449,8 +456,7 @@ solicita una nueva confirmación. Si falla Mercado Pago, reintentar en la misma
 pantalla reutiliza el pedido pendiente. Cerrar o recargar pierde ese estado de
 pantalla: aún no hay recuperación de borradores ni idempotencia entre visitas.
 Una respuesta de red perdida al crear el pedido no se reintenta automáticamente.
-El carrito nunca se vacía al crear el pedido, redirigir o volver por `success`.
-No hay webhook, stock ni acreditación de pagos en esta etapa.
+El carrito no se vacía al crear el pedido ni al redirigir. Al volver, la interfaz consulta el estado almacenado; si está aprobado y el carrito coincide exactamente con los ítems pagados, lo vacía. No hay gestión de stock.
 
 Prueba manual: iniciar sesión, agregar una prenda, completar envío o retiro y
 entrar a Revisión; todavía no debe existir un pedido nuevo. Pulsar Pagar crea un
@@ -583,7 +589,7 @@ La prueba real de widget + proveedor queda pendiente de la configuración manual
 Referencias: https://supabase.com/docs/guides/auth/auth-captcha y
 https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/.
 
-### Rate limiting persistente — 008 aprobada conceptualmente, pendiente de ejecución manual
+### Rate limiting persistente — migración 008 ya presente en Supabase
 
 **NO se ejecutó `008_rate_limiting.sql` en Supabase.** La secuencia activa es
 `001 → 002 → 003 → 004 → 005 → 006 → 007_products_price → 008_rate_limiting`.
@@ -598,8 +604,9 @@ de migraciones ni ejecutarse automáticamente. Solo `supabase/migrations/` conti
 las migraciones activas. El borrador conserva sus comentarios históricos sobre 007;
 eso no lo convierte en una migración vigente.
 
-Cuando se implemente USD/ARS + AMBA, se generará una nueva migración posterior a 008,
-por ejemplo `009_order_currency_amba.sql`, reconciliada con el rate limiting.
+La conversión visual USD/ARS y el cobro ARS desde precios base USD se implementan
+con `012`. Si se implementa AMBA, se necesitará una migración posterior a `012`,
+reconciliada con el rate limiting y la confirmación de pagos.
 No se debe copiar el borrador directamente a migrations ni ejecutarlo tal como está.
 Hasta aplicar manualmente la migración aprobada, las lecturas privadas, checkout y
 CRUD administrativo pueden responder error de configuración/503: fallan cerrados,
@@ -712,7 +719,7 @@ y validaciones del borrador reconciliado, y llamar una sola vez a
 `elite_security.consume('checkout', p_order_id::text)` después de validar y antes
 de autorizar MP, devolviendo `failure(429, v_retry)` si corresponde. Reemplazar entonces
 el consumo de `elite_checkout_quota` en Next para no contar dos veces. Se conservó
-íntegro el contenido del borrador; no se implementó USD/ARS, AMBA ni webhook.
+íntegro el contenido del borrador; la conversión USD es sólo visual, AMBA no está implementada y el webhook ARS está preparado en `010_payment_webhooks.sql`.
 
 **Pruebas locales y activación posterior.**
 
@@ -748,7 +755,7 @@ del navegador ni se promete seguridad absoluta.
 Referencias transaccionales: https://docs.postgrest.org/en/stable/references/transactions.html
 y https://www.postgresql.org/docs/current/plpgsql-control-structures.html#PLPGSQL-ERROR-TRAPPING.
 
-### 007_products_price — propuesta pendiente de ejecutar
+### 007_products_price — nota histórica del esquema previo a 012
 
 La nueva migración crea `price numeric` si falta, exige NOT NULL, sin default,
 positivo, finito, máximo 9999999999.99 y hasta dos decimales. Se usa numeric sin
@@ -781,13 +788,12 @@ sus precios reales explícitamente antes de volver a intentar 007. Esta migraci�
 se detiene en ese estado; nunca deja una aplicación operativa con precios ficticios.
 
 El borrador `supabase/drafts/order_currency_amba.sql` permanece intacto y excluido
-de las migraciones activas. Su reconciliación futura corresponderá a 009 o posterior.
+de las migraciones activas. Su reconciliación futura corresponderá a una migración posterior a `012`.
 
-**Moneda en la futura 009.** `009_order_currency_amba.sql` deberá cambiar
-explícitamente la semántica y el comentario de products.price de ARS a precio base
-USD, definir cómo cargar esos nuevos precios sin reinterpretar silenciosamente
-valores ARS, preservar los snapshots históricos y conservar el rate limiting de 008.
-Esta etapa no realiza esa conversión ni modifica el borrador.
+**Moneda de cobro.** La migración `012_usd_base_ars_orders.sql` documenta
+`products.price` como precio base USD, conserva los snapshots históricos ARS y
+convierte los pedidos nuevos a ARS con una cotización MEP verificada. Mantiene
+el rate limiting de `008` y no aplica el borrador AMBA.
 
 **Verificación remota pendiente, solo lectura.** El código admite numeric sin escala
 o numeric(p,s) compatible; no permite deducir el tipo remoto exacto. Antes de aprobar
@@ -812,7 +818,7 @@ son modificaciones intencionales de metadatos, sin sobrescribir precios.
 1. Preparar `products-with-prices.csv` con datos reales de una fuente confiable y
    esta cabecera, en este mismo orden:
    `id,name,size,brand,type,image,sort_order,price`.
-   Conservar los IDs y el orden del inventario; completar cada precio real en ARS.
+   Conservar los IDs y el orden del inventario; completar cada precio base real en USD.
    Usar punto decimal, sin símbolo monetario ni separadores de miles, y hasta dos
    decimales. No usar products.json como fuente de precios ni completar faltantes.
 2. En una sesión psql conectada explícitamente a la base destino, con el rol de

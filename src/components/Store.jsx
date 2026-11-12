@@ -1,6 +1,6 @@
 ﻿'use client'
 import { useLanguage, LanguageProvider, LanguageSwitcher } from '../lib/i18n'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { addItem, setQuantity, removeItem } from '../lib/cart'
 import { groupProducts, sizesFor, resolveCart } from '../lib/catalog'
@@ -12,6 +12,7 @@ import AuthForm from './AuthForm'
 import CheckoutFlow from './CheckoutFlow'
 import { useAuth } from '../lib/auth'
 import { missingProfileFields } from '../lib/profiles'
+import { CurrencyProvider, CurrencySwitcher, useCurrency } from '../lib/currency'
 
 function Icon({ name, ...props }) {
   const paths = { bag: 'M5 7h14l1 14H4L5 7ZM9 8V6a3 3 0 0 1 6 0v2', search: 'm21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0', arrow: 'M4 12h16m-6-6 6 6-6 6', close: 'm6 6 12 12M6 18 18 6', heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z', plus: 'M12 5v14M5 12h14', trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7', check: 'm5 12 4 4L19 6' }
@@ -80,12 +81,14 @@ function VariantOptions({ group, products, selection, compact = false }) {
 }
 function ProductPrice({ group, selection }) {
   const { language, t } = useLanguage()
+  const { currency, quote } = useCurrency()
   const variants = selection.variant ? [selection.variant] : group.variants.filter(variant => variant.color === selection.color)
   const prices = variants.map(variant => typeof variant.price === 'number' || (typeof variant.price === 'string' && variant.price.trim()) ? Number(variant.price) : NaN)
   const valid = prices.length > 0 && prices.every(price => Number.isFinite(price) && price > 0)
-  const formatter = new Intl.NumberFormat(language === 'en' ? 'en-US' : 'es-AR', { style: 'currency', currency: 'ARS' })
-  const low = Math.min(...prices)
-  const high = Math.max(...prices)
+  const displayArs = currency === 'ARS' && quote?.rate > 0
+  const formatter = new Intl.NumberFormat(language === 'en' ? 'en-US' : 'es-AR', { style: 'currency', currency: displayArs ? 'ARS' : 'USD' })
+  const low = Math.min(...prices) * (displayArs ? quote.rate : 1)
+  const high = Math.max(...prices) * (displayArs ? quote.rate : 1)
   return <p className="product-price">{valid ? (low === high ? formatter.format(low) : formatter.formatRange(low, high)) : t('Precio no disponible')}</p>
 }
 function ProductCard({ group, products, favorite, isFavorite, onOpen, onAdd, initialSize, initialColor }) {
@@ -133,6 +136,30 @@ function Store({ initialProducts, initialFilters = {} }) {
   const [onlyFavorites, setOnlyFavorites] = useState(initialFilters.onlyFavorites || false)
   const [modal, setModal] = useState(null)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [paymentResult, setPaymentResult] = useState(null)
+  const loadPayment = useCallback(async id => {
+    setPaymentResult({ loading: true })
+    try {
+      const response = await fetch(`/api/v1/orders/${id}`, { cache: 'no-store' })
+      if (!response.ok) throw new Error('No se pudo consultar el pedido.')
+      const { order } = await response.json()
+      if (!order || order.id !== id) throw new Error('Respuesta de pedido inválida.')
+      setPaymentResult({ order })
+      if (order.status === 'approved' && Array.isArray(order.order_items)) {
+        const purchased = new Map(order.order_items.map(item => [item.product_id, item.quantity]))
+        setCart(current => current.length === purchased.size && current.every(item => purchased.get(item.id) === item.quantity) ? [] : current)
+      }
+    } catch { setPaymentResult({ error: 'No pudimos verificar el estado del pedido. Volvé a intentar.' }) }
+  }, [])
+  useEffect(() => {
+    if (!user) return
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('order_id')
+    if (!['success', 'pending', 'failure'].includes(params.get('checkout')) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '')) return
+    setModal({ type: 'payment-result', id })
+    void loadPayment(id)
+  }, [user, loadPayment])
   useEffect(() => {
     if (returningFromEmail) { setModal({ type: 'auth' }); acknowledgeEmailReturn() }
   }, [returningFromEmail, acknowledgeEmailReturn])
@@ -169,7 +196,7 @@ function Store({ initialProducts, initialFilters = {} }) {
     <main><FeaturedCarousel products={groups} onOpen={openProduct} />
     <section className="brand-strip" id="marcas" aria-label={t("Marcas de la colección")}>{['NIKE', 'PALM ANGELS', 'OFF WHITE', 'BALENCIAGA', 'CORTEIZ'].map(b => <a href="#catalogo" key={b} onClick={() => { reset(); setBrand(b) }}>{b === 'OFF WHITE' ? 'Off-White™' : b === 'PALM ANGELS' ? 'Palm Angels' : b}</a>)}</section>
     <section className="catalog" id="catalogo"><div className="section-heading"><h1>{t(department || "La colección")}{category !== "Todo" && <span className="heading-category"> / {t(category)}</span>}</h1></div>
-    <div className="catalog-toolbar"><form className="search" onSubmit={event => event.preventDefault()}><label className="sr-only" htmlFor="search">{t("Buscar productos")}</label><Icon name="search" /><input id="search" name="q" placeholder={t("Buscá tu próxima pieza")} value={query} onChange={e => { setQuery(e.target.value); setLimit(12) }} />{department && <input type="hidden" name="seccion" value={department} />}<button type="submit" aria-label={t("Enviar búsqueda")}><Icon name="arrow" /></button></form>
+    <div className="catalog-toolbar"><form className="search" onSubmit={event => event.preventDefault()}><label className="sr-only" htmlFor="search">{t("Buscar productos")}</label><Icon name="search" /><input id="search" name="q" placeholder={t("Buscá tu próxima pieza")} value={query} onChange={e => { setQuery(e.target.value); setLimit(12) }} />{department && <input type="hidden" name="seccion" value={department} />}<button type="submit" aria-label={t("Enviar búsqueda")}><Icon name="arrow" /></button></form><CurrencySwitcher />
     <CatalogFilters brands={[...new Set(products.map(p => p.brand))].sort()} sizes={[...new Set(products.map(p => p.size))].sort()} colors={[...new Set(groups.flatMap(p => p.variants.flatMap(v => v.color.split(' / '))))].sort()} categories={categories} values={{ brand, size, color, category, sort }} onChange={(field, value) => { ({ brand: setBrand, size: setSize, color: setColor, category: setCategory, sort: setSort })[field](value); setLimit(12) }} onClear={() => { setBrand(''); setSize(''); setColor(''); setCategory('Todo'); setSort('featured'); setLimit(12) }} /></div>
     <div className="results"><span>{t(`${filtered.length} productos${onlyFavorites ? ' · Tus favoritos' : ''}`)}</span>{(query || department || category !== 'Todo' || brand || size || color || onlyFavorites) && <button onClick={reset}>{t("Limpiar filtros ×")}</button>}</div>
     <div className="product-grid">{filtered.slice(0, limit).map(p => <ProductCard key={p.id + ':' + color + ':' + size + ':' + p.variants.map(v => v.name + v.size).join('|')} group={p} products={products} initialSize={size} initialColor={color} isFavorite={p.sourceIds.some(id => favorites.includes(id))} favorite={() => favorite(p)} onOpen={openProduct} onAdd={add} />)}</div>
@@ -183,8 +210,14 @@ function Store({ initialProducts, initialFilters = {} }) {
     {modal?.type === 'cart' && <Modal title={t(`Tu carrito (${count})`)} drawer onClose={() => setModal(null)}>{items.length ? <><div className="cart-items">{items.map(({ product: p, quantity }) => <article className="cart-item" key={p.id}><Photo product={p} /><div><p className="eyebrow">{p.brand}</p><h3>{p.name}</h3><div className="cart-variant"><span className="cart-swatch" role="img" aria-label={p.color} style={{ background: swatchFor(p) }} />{p.size !== '-' && <span>{t(`Talle ${p.size}`)}</span>}</div><div className="quantity"><button disabled={quantity === 1} aria-label={t(`Restar ${p.name}`)} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity - 1))}>−</button><span>{quantity}</span><button disabled={quantity === 99} aria-label={t(`Sumar ${p.name}`)} onClick={() => setCart(c => setQuantity(cartRows(c), p.id, quantity + 1))}>+</button></div></div><button className="icon-button" aria-label={t(`Eliminar ${p.name} del carrito`)} onClick={() => setCart(c => removeItem(cartRows(c), p.id))}><Icon name="trash" /></button></article>)}</div><div className="cart-summary"><div><span>{t("Total de prendas")}</span><strong>{count}</strong></div><button className="button dark" onClick={() => setModal({ type: 'checkout' })}>{t("Continuar")} <Icon name="arrow" /></button><button className="text-button" onClick={() => setModal({ type: 'empty-cart' })}>{t("Vaciar carrito")}</button></div></> : <div className="empty"><Icon name="bag" width="44" height="44" /><h3>{t("Carrito vacío")}</h3><p>{t("Todavía no agregaste productos.")}</p><button className="button dark" onClick={() => { setModal(null); document.getElementById('catalogo').scrollIntoView() }}>{t("Explorar colección")}</button></div>}</Modal>}
     {modal?.type === 'empty-cart' && <Modal title={t("¿Vaciar tu carrito?")} onClose={() => setModal({ type: 'cart' })}><p>{t("Se quitarán todas las prendas que elegiste.")}</p><div className="modal-actions"><button className="button outline" onClick={() => setModal({ type: 'cart' })}>{t("Cancelar")}</button><button className="button dark" onClick={() => { setCart([]); setModal({ type: 'cart' }) }}>{t("Vaciar carrito")}</button></div></Modal>}
     {modal?.type === 'checkout' && <Modal title="Finalizar compra" onClose={() => { if (!checkoutBusy) setModal(null) }}><CheckoutFlow items={items} onBusy={setCheckoutBusy} onBack={() => setModal({ type: 'cart' })} /></Modal>}
+    {modal?.type === 'payment-result' && <Modal title={t('Estado del pedido')} onClose={() => setModal(null)}>
+      <p>Pedido {modal.id}</p>
+      {paymentResult?.loading ? <p role="status">{t('Verificando pago…')}</p> : paymentResult?.error ? <p role="alert">{t(paymentResult.error)}</p> :
+        <p role="status">{t(paymentResult?.order?.status === 'approved' ? 'Pago confirmado por Mercado Pago.' : 'Pago todavía no confirmado. Consultá nuevamente antes de repetir la compra.')}</p>}
+      <button className="button outline" onClick={() => loadPayment(modal.id)} disabled={paymentResult?.loading}>{t('Actualizar estado')}</button>
+    </Modal>}
   </>
 }
 
 
-export default function LocalizedStore(props) { return <LanguageProvider><Store {...props} /></LanguageProvider> }
+export default function LocalizedStore(props) { return <LanguageProvider><CurrencyProvider><Store {...props} /></CurrencyProvider></LanguageProvider> }

@@ -8,7 +8,7 @@ import { protectedRpc, rateLimitResponse } from './rateLimit.js'
 
 const bodySchema = z.object({ order_id: z.string().uuid() }).strict()
 const endpoint = 'https://api.mercadopago.com/checkout/preferences'
-const columns = 'id,user_id,status,subtotal,shipping_cost,total,order_delivery(method),order_items(id,product_id,quantity,unit_price,products(name))'
+const columns = 'id,user_id,status,pricing_version,subtotal,shipping_cost,total,order_delivery(method),order_items(id,product_id,quantity,unit_price,products(name))'
 const reserved = new BlockList()
 for (const [address, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4]]) reserved.addSubnet(address, prefix, 'ipv4')
 for (const [address, prefix] of [['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20]]) reserved.addSubnet(address, prefix, 'ipv6')
@@ -54,6 +54,8 @@ function cents(value) {
 export function buildPreference(order, userId, appUrl) {
   // Defensa adicional aunque RLS permita a un admin leer pedidos ajenos.
   if (!order || order.user_id !== userId) throw new CheckoutError(404, 'Pedido no encontrado.')
+  if (order.pricing_version !== 'usd_mep_v1') throw new CheckoutError(409, 'Este pedido anterior no tiene una cotización ARS verificada. Creá un pedido nuevo para pagar.')
+  if (order.currency && order.currency !== 'ARS') throw new CheckoutError(409, 'El pedido debe estar expresado en ARS para Mercado Pago.')
   if (order.status !== 'pending') throw new CheckoutError(409, 'Solo se puede iniciar Checkout para un pedido pending.')
   if (!Array.isArray(order.order_items) || !order.order_items.length) throw new CheckoutError(409, 'El pedido no tiene ítems.')
   let total = 0n
@@ -86,7 +88,14 @@ export async function checkoutInput(request) {
   return parsed.data
 }
 
-export async function createCheckout(request, client, { appUrl, token, fetch: send = globalThis.fetch, resolve = lookup }) {
+function checkoutDestination(data) {
+  const target = new URL(data?.init_point)
+  if (typeof data?.preference_id !== 'string' || !data.preference_id || target.protocol !== 'https:' || target.username || target.password ||
+    !(target.hostname === 'mercadopago.com.ar' || target.hostname.endsWith('.mercadopago.com.ar') || target.hostname === 'mercadopago.com' || target.hostname.endsWith('.mercadopago.com'))) throw new Error('Invalid provider response')
+  return { preference_id: data.preference_id, init_point: target.href }
+}
+
+export async function createCheckout(request, client, { appUrl, token, preferenceClient, fetch: send = globalThis.fetch, resolve = lookup }) {
   const user = await requireOrderUser(client)
   const { order_id } = await checkoutInput(request)
   const { data: order, error } = await client.from('orders').select(columns).eq('id', order_id).eq('user_id', user.id).maybeSingle()
@@ -94,26 +103,43 @@ export async function createCheckout(request, client, { appUrl, token, fetch: se
   if (!order || order.user_id !== user.id) throw new CheckoutError(404, 'Pedido no encontrado.')
   const origin = await publicAppUrl(appUrl, resolve)
   if (typeof token !== 'string' || !token.trim()) throw new CheckoutError(503, 'MERCADOPAGO_ACCESS_TOKEN no está configurado en el servidor.')
+  if (!preferenceClient?.rpc) throw new CheckoutError(503, 'El registro de Checkout no está configurado.')
   const preference = buildPreference(order, user.id, origin)
   // La RPC confirma el consumo antes del fetch; un error de MP no lo revierte.
   const quota = await protectedRpc(client, 'elite_checkout_quota', { p_order_id: order_id })
   if (quota.allowed !== true) throw new CheckoutError(503, 'No se pudo verificar la cuota de Checkout.')
+  const claim = await protectedRpc(preferenceClient, 'elite_claim_checkout_preference', { p_order_id: order_id, p_user_id: user.id })
+  if (claim.state === 'ready') {
+    try { return checkoutDestination(claim) } catch { throw new CheckoutError(503, 'La Preference guardada no es válida.') }
+  }
+  if (claim.state === 'creating') throw new CheckoutError(409, 'La Preference de este pedido está pendiente de verificación. Contactá a la tienda antes de reintentar.')
+  if (claim.state !== 'claimed' || !/^[0-9a-f-]{36}$/i.test(claim.claim_token || '')) throw new CheckoutError(503, 'No se pudo reservar Checkout.')
+  const release = async () => { try { await preferenceClient.rpc('elite_release_checkout_preference', { p_order_id: order_id, p_user_id: user.id, p_claim_token: claim.claim_token }) } catch { /* La reserva incierta permanece cerrada. */ } }
+  let destination
   try {
     const response = await send(endpoint, {
       method: 'POST', cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(preference),
     })
-    if (!response.ok) throw new Error('Provider rejected request')
+    if (!response.ok) {
+      // Un 408/409/429 puede ser ambiguo: no arriesgar una segunda Preference.
+      if ([400, 401, 403, 404, 422].includes(response.status)) await release()
+      throw new Error('Provider rejected request')
+    }
     const data = await response.json()
-    const target = new URL(data.init_point)
-    if (typeof data.id !== 'string' || !data.id || target.protocol !== 'https:' || target.username || target.password || !(target.hostname === 'mercadopago.com.ar' || target.hostname.endsWith('.mercadopago.com.ar') || target.hostname === 'mercadopago.com' || target.hostname.endsWith('.mercadopago.com'))) throw new Error('Invalid provider response')
-    // Se devuelve únicamente la información pública necesaria para redirigir.
-    return { preference_id: data.id, init_point: target.href }
+    destination = checkoutDestination({ preference_id: data.id, init_point: data.init_point })
   } catch {
     // Nunca propagar bodies, headers, credenciales ni mensajes crudos del proveedor.
-    throw new CheckoutError(502, 'No se pudo obtener Checkout Pro de Mercado Pago. No se modificó el pedido.')
+    throw new CheckoutError(502, 'No se pudo confirmar Checkout Pro. Si el error persiste, consultá a la tienda antes de reintentar.')
   }
+  try {
+    await protectedRpc(preferenceClient, 'elite_finish_checkout_preference', {
+      p_order_id: order_id, p_user_id: user.id, p_claim_token: claim.claim_token,
+      p_preference_id: destination.preference_id, p_init_point: destination.init_point,
+    })
+  } catch { throw new CheckoutError(503, 'La Preference se creó pero no pudo registrarse. Contactá a la tienda; no repitas el pago.') }
+  return destination
 }
 
 export function checkoutFailure(error) {

@@ -3,6 +3,7 @@ for (const width of [390, 1440]) {
   test(`complete photos and product zoom at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/catalogo')
+    await expect(page.locator('.nav-trigger').first()).toBeEnabled()
     await expect(page.locator('.announcement, .club-banner, .campaign-copy')).toHaveCount(0)
     for (const img of await page.locator('.campaign-images img').all()) {
       expect(await img.evaluate(el => getComputedStyle(el).objectFit)).toBe('contain')

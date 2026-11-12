@@ -3,8 +3,19 @@ import { publicAppUrl, buildPreference, checkoutInput, createCheckout, checkoutF
 
 const id = '11111111-1111-4111-8111-111111111111'
 const owner = '22222222-2222-4222-8222-222222222222'
-const order = () => ({ id, user_id: owner, status: 'pending', subtotal: '0.30', shipping_cost: 0, order_delivery: { method: 'shipping' }, total: '0.30', order_items: [{ product_id: 'a', quantity: 3, unit_price: '0.10', products: { name: 'Remera Elite', price: 9999 } }] })
+const order = () => ({ id, user_id: owner, status: 'pending', pricing_version: 'usd_mep_v1', subtotal: '0.30', shipping_cost: 0, order_delivery: { method: 'shipping' }, total: '0.30', order_items: [{ product_id: 'a', quantity: 3, unit_price: '0.10', products: { name: 'Remera Elite', price: 9999 } }] })
 const request = (body = { order_id: id }, headers = {}) => new Request('http://localhost:3000/api/v1/checkout', { method: 'POST', headers: { Origin: 'http://localhost:3000', 'Content-Type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) })
+const claimToken = '33333333-3333-4333-8333-333333333333'
+const preferenceClient = (state = { state: 'claimed', claim_token: claimToken }) => ({
+  calls: [],
+  async rpc(name, args) {
+    this.calls.push({ name, args })
+    if (name === 'elite_claim_checkout_preference') return { data: state }
+    if (name === 'elite_finish_checkout_preference') return { data: { state: 'ready', preference_id: args.p_preference_id, init_point: args.p_init_point } }
+    if (name === 'elite_release_checkout_preference') return { data: true }
+    throw new Error('Unexpected RPC')
+  },
+})
 function client(data, userId = owner) {
   const filters = []
   const query = { select: columns => { expect(columns).not.toContain('products(price)'); return query }, eq: (key, value) => { filters.push([key, value]); return query }, maybeSingle: async () => ({ data }) }
@@ -42,6 +53,7 @@ test('preference uses historic prices and exact cents, rejects other owners and 
   expect(result).toMatchObject({ external_reference: id, auto_return: 'approved', items: [{ id: 'a', title: 'Remera Elite', quantity: 3, unit_price: 0.1, currency_id: 'ARS' }] })
   for (const outcome of ['success', 'pending', 'failure']) expect(result.back_urls[outcome]).toBe(`https://shop.example.org/?checkout=${outcome}&order_id=${id}`)
   expect(() => buildPreference(order(), 'admin', 'https://shop.example.org')).toThrow('Pedido no encontrado')
+  expect(() => buildPreference({ ...order(), pricing_version: 'legacy_ars' }, owner, 'https://shop.example.org')).toThrow('pedido anterior')
   for (const status of ['approved', 'rejected', 'cancelled']) expect(() => buildPreference({ ...order(), status }, owner, 'https://shop.example.org')).toThrow()
   for (const total of ['0.31', NaN, Infinity, -1, 0.30000000000000004]) expect(() => buildPreference({ ...order(), total }, owner, 'https://shop.example.org')).toThrow()
   expect(() => buildPreference({ ...order(), order_items: [] }, owner, 'https://shop.example.org')).toThrow()
@@ -51,7 +63,8 @@ test('preference uses historic prices and exact cents, rejects other owners and 
 test('checkout validates before contacting Mercado Pago and never returns raw provider secrets', async () => {
   const calls = []
   const token = 'fake-server-secret'
-  const options = { appUrl: 'https://8.8.8.8', token, fetch: async (url, init) => {
+  const recordingClient = preferenceClient()
+  const options = { appUrl: 'https://8.8.8.8', token, preferenceClient: recordingClient, fetch: async (url, init) => {
     calls.push({ url, init })
     return Response.json({ id: 'pref-1', init_point: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref-1', access_token: token })
   } }
@@ -60,6 +73,7 @@ test('checkout validates before contacting Mercado Pago and never returns raw pr
   expect(supabase.filters).toEqual([['id', id], ['user_id', owner]])
   expect(result).toEqual({ preference_id: 'pref-1', init_point: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref-1' })
   expect(calls).toHaveLength(1)
+  expect(recordingClient.calls.map(call => call.name)).toEqual(['elite_claim_checkout_preference', 'elite_finish_checkout_preference'])
   expect(calls[0].url).toBe('https://api.mercadopago.com/checkout/preferences')
   expect(calls[0].init.headers.Authorization).toBe(`Bearer ${token}`)
   expect(JSON.parse(calls[0].init.body).items[0].unit_price).toBe(0.1)
@@ -76,4 +90,22 @@ test('checkout validates before contacting Mercado Pago and never returns raw pr
       expect(await response.text()).not.toContain(token)
     }
   }
+})
+
+test('saved preference is reused; uncertain creation blocks a second provider call', async () => {
+  const destination = { preference_id: 'pref-1', init_point: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref-1' }
+  let providerCalls = 0
+  const options = { appUrl: 'https://8.8.8.8', token: 'fixture', fetch: async () => { providerCalls++; throw new Error('Network timeout') } }
+  expect(await createCheckout(request(), client(order()), { ...options, preferenceClient: preferenceClient({ state: 'ready', ...destination }) })).toEqual(destination)
+  await expect(createCheckout(request(), client(order()), { ...options, preferenceClient: preferenceClient({ state: 'creating' }) })).rejects.toMatchObject({ status: 409 })
+  const pending = preferenceClient()
+  await expect(createCheckout(request(), client(order()), { ...options, preferenceClient: pending })).rejects.toMatchObject({ status: 502 })
+  expect(providerCalls).toBe(1)
+  expect(pending.calls.map(call => call.name)).toEqual(['elite_claim_checkout_preference'])
+  const timeout = preferenceClient()
+  await expect(createCheckout(request(), client(order()), { ...options, preferenceClient: timeout, fetch: async () => Response.json({}, { status: 408 }) })).rejects.toMatchObject({ status: 502 })
+  expect(timeout.calls.map(call => call.name)).toEqual(['elite_claim_checkout_preference'])
+  const rejected = preferenceClient()
+  await expect(createCheckout(request(), client(order()), { ...options, preferenceClient: rejected, fetch: async () => Response.json({}, { status: 400 }) })).rejects.toMatchObject({ status: 502 })
+  expect(rejected.calls.map(call => call.name)).toEqual(['elite_claim_checkout_preference', 'elite_release_checkout_preference'])
 })

@@ -6,8 +6,8 @@ export class OrderError extends Error {
   constructor(status, message) { super(message); this.status = status }
 }
 
-export const orderColumns = 'id,user_id,status,subtotal,shipping_cost,total,created_at,order_delivery(*)'
-export const orderDetailColumns = `${orderColumns},order_items(id,order_id,product_id,quantity,unit_price)`
+export const orderColumns = 'id,user_id,status,subtotal,shipping_cost,total,pricing_version,fx_rate,fx_source,fx_date,fx_fetched_at,created_at,order_delivery(*)'
+export const orderDetailColumns = `${orderColumns},order_items(id,order_id,product_id,quantity,unit_price,unit_price_usd)`
 
 export async function requireOrderUser(client) {
   const { data, error } = await client.auth.getUser()
@@ -38,6 +38,7 @@ export function ordersFailure(error) {
     PT400: [400, 'Pedido inválido: revisá los productos y sus cantidades.'],
     PT401: [401, 'Unauthorized'],
     PT409: [409, 'No se pudo crear el pedido: revisá los precios o el importe total.'],
+    PT503: [503, 'No hay una cotización MEP reciente. Probá más tarde.'],
     '42501': [403, 'Forbidden'],
     '55P03': [409, 'Los productos se están actualizando. Consultá nuevamente antes de intentar crear el pedido.'],
     PGRST202: [503, 'La creación de pedidos todavía no está configurada en Supabase.'],
