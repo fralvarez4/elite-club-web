@@ -95,7 +95,9 @@ test('only owner can checkout; historical amounts and pending status are preserv
   const sent = (await (await api.get(`${backend}/fixtures/preferences`)).json())[0]
   expect(sent).toMatchObject({ external_reference: order.id, auto_return: 'approved', items: [{ title: 'Prenda Elite', quantity: 2, unit_price: 10500, currency_id: 'ARS' }] })
   for (const state of ['success', 'pending', 'failure']) expect(sent.back_urls[state]).toBe(`https://8.8.8.8/?checkout=${state}&order_id=${order.id}`)
-  expect((await (await api.get(`/api/v1/orders/${order.id}`)).json()).order).toEqual(order)
+  const persistedOrder = (await (await api.get(`/api/v1/orders/${order.id}`)).json()).order
+  expect(persistedOrder).toMatchObject(order)
+  expect(persistedOrder.order_items[0].products).toMatchObject({ id: product_id, name: 'Prenda Elite' })
   await api.post(`${backend}/fixtures/order-change`, { data: { id: order.id, changes: { pricing_version: 'legacy_ars' } } })
   expect((await checkout(context, { order_id: order.id })).status()).toBe(409)
   await api.post(`${backend}/fixtures/order-change`, { data: { id: order.id, changes: { pricing_version: 'usd_mep_v1' } } })
