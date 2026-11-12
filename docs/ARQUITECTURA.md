@@ -1,0 +1,10 @@
+# Arquitectura y seguridad
+
+- `app/`: páginas Next.js y rutas de API. El catálogo se carga en el servidor desde Supabase; si la consulta devuelve cero filas no se oculta el problema con datos de respaldo. El JSON local sólo respalda entornos sin conexión o con error de consulta y no habilita checkout.
+- `src/components/`: catálogo, autenticación, perfil, carrito, historial, checkout y administración. El detalle de cada pedido aparece en su tarjeta. La interfaz muestra «Continuar pago» sólo para pedidos `pending` de clientes.
+- `src/lib/`: validaciones de datos, cálculo de presentación, clientes Supabase y lógica del proveedor. `supabase/migrations/` contiene funciones, políticas RLS y límites persistentes.
+- El carrito invitado usa almacenamiento de sesión; cada cuenta usa su propia clave local. El cierre de sesión no muestra el carrito de la cuenta anterior.
+- La API vuelve a comprobar sesión, propiedad y estado del pedido antes de iniciar checkout. La RPC reserva una sola preferencia por pedido y reutiliza la existente. La interfaz no crea otro pedido al continuar un pago. El webhook verifica firma, vendedor, referencia, importe y estado consultando Mercado Pago antes de marcar un pedido como aprobado.
+- Los importes base del catálogo son USD. La creación de pedidos toma una cotización MEP reciente, fija el importe ARS y conserva los importes históricos.
+
+**Límite deliberado:** si Mercado Pago no confirma la creación de una preferencia, o un enlace guardado vence, el sistema no genera otra automáticamente: hacerlo podría duplicar intentos de cobro. La tienda debe revisar la operación con el proveedor. La confirmación automática de notificaciones para cobros reales no fue observada en esta entrega; se probó un pago de prueba y la notificación con el simulador oficial.
