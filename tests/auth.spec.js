@@ -277,6 +277,7 @@ test('login persists across reload and routes; logout isolates the signed-in car
 test('guest cart follows the shopper into their account and disappears on sign-out', async ({ page, context }) => {
   await mockAuth(context)
   await page.goto('/catalogo')
+  await page.waitForFunction(() => sessionStorage.getItem('elite-club-v2:guest') !== null)
   await page.getByRole('button', { name: 'Agregar al carrito', exact: true }).first().click()
   await expect(page.getByRole('button', { name: 'Carrito 1', exact: true })).toBeVisible()
   const dialog = await login(page)
